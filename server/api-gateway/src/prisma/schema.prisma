@@ -1,0 +1,190 @@
+// ─── server/api-gateway/prisma/schema.prisma ──────────────
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  avatar       String?
+  bio          String?
+  reputation   Int      @default(0)
+  creatorLevel Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  skills        Skill[]
+  posts         Post[]
+  comments      Comment[]
+  tokenUsages   TokenUsage[]
+  purchases     Purchase[]
+  agentServices AgentService[]
+  agentTasks    AgentTask[]    @relation("Client")
+  providedTasks AgentTask[]    @relation("Provider")
+  reviews       Review[]
+}
+
+model Skill {
+  id          String      @id @default(cuid())
+  name        String
+  description String
+  version     String
+  price       Float       @default(0)
+  priceType   PriceType   @default(FREE)
+  downloads   Int         @default(0)
+  rating      Float       @default(0)
+  status      SkillStatus @default(PENDING)
+  protocol    String      @default("openclaw-native")
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  manifest   Json
+  packageUrl String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchases Purchase[]
+  reviews   Review[]
+}
+
+enum PriceType {
+  FREE
+  ONE_TIME
+  SUBSCRIPTION
+}
+
+enum SkillStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model Purchase {
+  id      String  @id @default(cuid())
+  userId  String
+  skillId String
+  amount  Float
+  txHash  String?
+
+  user  User  @relation(fields: [userId], references: [id])
+  skill Skill @relation(fields: [skillId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  skillId   String
+  rating    Int
+  content   String?
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  skill Skill @relation(fields: [skillId], references: [id])
+}
+
+model Post {
+  id       String       @id @default(cuid())
+  title    String
+  content  String       @db.Text
+  category PostCategory
+  tags     String[]
+  views    Int          @default(0)
+  likes    Int          @default(0)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  comments Comment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum PostCategory {
+  TUTORIAL
+  QUESTION
+  SHOWCASE
+  DISCUSSION
+  BUG
+}
+
+model Comment {
+  id      String @id @default(cuid())
+  content String @db.Text
+  likes   Int    @default(0)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id])
+
+  parentId String?
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies  Comment[] @relation("CommentReplies")
+
+  createdAt DateTime @default(now())
+}
+
+model TokenUsage {
+  id           String  @id @default(cuid())
+  userId       String
+  modelName    String
+  inputTokens  Int
+  outputTokens Int
+  costUsd      Float
+  skillId      String?
+  protocol     String  @default("llm-call")
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model AgentTask {
+  id          String     @id @default(cuid())
+  clientId    String
+  providerId  String?
+  description String     @db.Text
+  status      TaskStatus @default(PENDING)
+  bid         Float?
+  proofHash   String?
+
+  client   User  @relation("Client", fields: [clientId], references: [id])
+  provider User? @relation("Provider", fields: [providerId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+}
+
+enum TaskStatus {
+  PENDING
+  ACCEPTED
+  EXECUTING
+  COMPLETED
+  DISPUTED
+}
+
+model AgentService {
+  id           String  @id @default(cuid())
+  providerId   String
+  skillId      String
+  pricePerTask Float
+  availability Boolean @default(true)
+
+  provider User @relation(fields: [providerId], references: [id])
+
+  createdAt DateTime @default(now())
+}

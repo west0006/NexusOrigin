@@ -1,0 +1,36 @@
+# ─── docker/docker-compose.yml ─────────────────────────────
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: shrimp-pg
+    environment:
+      POSTGRES_USER: shrimp
+      POSTGRES_PASSWORD: shrimp_dev
+      POSTGRES_DB: shrimp_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shrimp"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: shrimp-redis
+    command: redis-server --requirepass shrimp_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 5s
+      retries: 5
+
+volumes:
+  pg_data:
+  redis_data:

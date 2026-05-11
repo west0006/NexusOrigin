@@ -1,0 +1,22 @@
+# ─── client/electron-builder.yml ───────────────────────────
+appId: com.shrimptank.openclaw
+productName: 虾塘智联
+directories:
+  output: release
+  buildResources: resources
+files:
+  - dist/**/*
+  - '!**/*.map'
+mac:
+  target: [dmg, zip]
+  icon: resources/icons/icon.icns
+  category: public.app-category.developer-tools
+win:
+  target: [nsis, zip]
+  icon: resources/icons/icon.ico
+linux:
+  target: [AppImage, deb]
+  icon: resources/icons/
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

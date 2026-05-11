@@ -1,0 +1,28 @@
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 构建产物
+dist/
+release/
+*.tsbuildinfo
+
+# 环境变量（保留 .env.example 模板）
+.env
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+npm-debug.log*
+
+# 包管理器锁文件（pnpm-lock.yaml 建议保留以固定依赖版本，此处可自行决定）
+# package-lock.json  # 若使用 pnpm，建议删除 package-lock.json
