@@ -2,20 +2,29 @@ import React, { useEffect, useState } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { DeploymentWizard } from './pages/Deployment';
-import { SkillStore } from './pages/SkillStore';
+// import { SkillStore } from './pages/SkillStore';
+import { CapabilityMarketplace } from './pages/CapabilityMarketplace';
 import { Community } from './pages/Community';
 import { AuthPage } from './pages/Auth';
 import { useAppStore, Route } from './store/app';
 import { useUserStore } from './store/user.store';
+import {Profile} from "@renderer/pages/Profile";
+import {AgentManager} from "@renderer/pages/AgentManager";
+import {CommandPalette} from "@renderer/components/CommandPalette";
+import {ErrorBoundary} from "@renderer/components/ErrorBoundary";
+import {ToastContainer} from "@renderer/components/Toast";
+import {ConfirmProvider} from "@renderer/contexts/ConfirmContext";
 
 const PAGE_MAP: Record<Exclude<Route, 'auth'>, React.FC> = {
     dashboard: Dashboard,
     deployment: DeploymentWizard,
-    skills: SkillStore,
+    skills: CapabilityMarketplace,
     community: Community,
+    settings: Profile,
+    agents: AgentManager,
 };
 
-const PROTECTED: Route[] = ['skills', 'community'];
+const PROTECTED: Route[] = ['skills', 'community', 'agents', 'settings'];
 
 export const App: React.FC = () => {
     const currentRoute = useAppStore(s => s.currentRoute);
@@ -51,8 +60,14 @@ export const App: React.FC = () => {
     const Page = currentRoute === 'auth' ? AuthPage : PAGE_MAP[currentRoute] || Dashboard;
 
     return (
-        <Layout>
-            <Page />
-        </Layout>
+        <ErrorBoundary>
+            <ConfirmProvider>
+                <Layout>
+                    <Page />
+                    <CommandPalette />
+                </Layout>
+                <ToastContainer />
+            </ConfirmProvider>
+        </ErrorBoundary>
     );
 };

@@ -1,13 +1,15 @@
-// client/src/renderer/components/Layout/index.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAppStore, Route } from '../../store/app';
 import { useUserStore } from '../../store/user.store';
+import { StatusBar } from '../StatusBar';
 
 const NAV_ITEMS: { route: Route; label: string; icon: string }[] = [
     { route: 'dashboard', label: '仪表盘', icon: '📊' },
     { route: 'deployment', label: '部署', icon: '🚀' },
-    { route: 'skills', label: '技能商店', icon: '🛒' },
+    { route: 'agents', label: 'Agent管理', icon: '🤖' },
+    { route: 'skills', label: '能力市场', icon: '🛒' },
     { route: 'community', label: '社区', icon: '💬' },
+    { route: 'settings', label: '个人中心', icon: '👤' },
 ];
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -15,6 +17,23 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     const setRoute = useAppStore((s) => s.setRoute);
     const user = useUserStore((s) => s.user);
     const logout = useUserStore((s) => s.logout);
+
+    // 路由切换时回到顶部
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, [currentRoute]);
+
+    // 全局 ESC 键关闭聚焦面板（由各个 FocusPanel 自行监听原生 Escape，这里仅做补充）
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                // 向所有聚焦面板发送关闭事件（备用）
+                window.dispatchEvent(new CustomEvent('close-focus-panels'));
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, []);
 
     return (
         <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
@@ -96,7 +115,6 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
             {/* 右侧内容区 */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {/* 顶部导航 */}
                 <header
                     style={{
                         height: 'var(--topnav-height)',
@@ -136,10 +154,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                     </div>
                 </header>
 
-                {/* 主内容区 */}
                 <main style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
                     {children}
                 </main>
+                <StatusBar />
             </div>
         </div>
     );

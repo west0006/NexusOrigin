@@ -1,5 +1,5 @@
 <!-- ─── README.md ──────────────────────────────────────── -->
-# 虾塘智联 (ShrimpTank Platform)
+# 枢元 (NexusOrigin)
 
 OpenClaw 养虾人的 AI 助手与技能交易平台，致力于成为 AI Agent 生态的一站式入口。
 

@@ -1,42 +1,32 @@
-// ── community/post.service.ts ─────────────────────────────
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { PostCategory } from '@prisma/client';
 
-interface CreatePostInput {
-    title: string;
-    content: string;
-    category: PostCategory;
-    tags: string[];
-    authorId: string;
-}
-
 @Injectable()
 export class PostService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(private prisma: PrismaService) {}
 
-    async create(input: CreatePostInput) {
-        return this.prisma.post.create({
-            data: {
-                title: input.title,
-                content: input.content,
-                category: input.category,
-                tags: input.tags,
-                authorId: input.authorId,
-            },
-        });
+    async create(data: { title: string; content: string; category: PostCategory; tags: string[]; authorId: string }) {
+        return this.prisma.post.create({ data });
     }
 
-    async list(page: number = 1, pageSize: number = 20) {
-        const skip = (page - 1) * pageSize;
+    async list(page: number, pageSize: number, search?: string) {
+        const where: any = {};
+        if (search) {
+            where.OR = [
+                { title: { contains: search } },
+                { content: { contains: search } },
+            ];
+        }
         const [posts, total] = await Promise.all([
             this.prisma.post.findMany({
-                skip,
+                skip: (page - 1) * pageSize,
                 take: pageSize,
+                where,
                 orderBy: { createdAt: 'desc' },
                 include: { author: { select: { id: true, username: true, avatar: true } } },
             }),
-            this.prisma.post.count(),
+            this.prisma.post.count({ where }),
         ]);
         return { posts, total };
     }
@@ -46,7 +36,21 @@ export class PostService {
             where: { id },
             include: {
                 author: { select: { id: true, username: true } },
-                comments: { include: { author: { select: { id: true, username: true } } }, orderBy: { createdAt: 'asc' } },
+                comments: {
+                    where: { parentId: null },
+                    include: {
+                        author: { select: { id: true, username: true } },
+                        replies: {
+                            include: {
+                                author: { select: { id: true, username: true } },
+                                _count: { select: { commentLikes: true } },
+                            },
+                            orderBy: { createdAt: 'asc' },
+                        },
+                        _count: { select: { commentLikes: true } },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                },
             },
         });
     }

@@ -42,3 +42,18 @@ type AgentDriver interface {
 	// Uninstall 卸载框架及依赖
 	Uninstall(ctx context.Context) error
 }
+
+// EnvironmentChecker 用于部署前检查
+type EnvironmentChecker interface {
+	Check(ctx context.Context) (*EnvCheckResult, error)
+}
+
+type EnvCheckResult struct {
+	NodeVersion    string `json:"nodeVersion"`
+	PythonVersion  string `json:"pythonVersion"`
+	NpmVersion     string `json:"npmVersion"`
+	DiskSpace      int64  `json:"diskSpace"` // MB
+	Memory         int64  `json:"memory"`    // MB
+	Os             string `json:"os"`
+	Arch           string `json:"arch"`
+}

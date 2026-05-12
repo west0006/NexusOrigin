@@ -15,12 +15,13 @@ model User {
   passwordHash String
   avatar       String?
   bio          String?
+  credits      Float    @default(0)
   reputation   Int      @default(0)
   creatorLevel Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  skills        Skill[]
+  Capability    Capability[]
   posts         Post[]
   comments      Comment[]
   tokenUsages   TokenUsage[]
@@ -29,9 +30,36 @@ model User {
   agentTasks    AgentTask[]    @relation("Client")
   providedTasks AgentTask[]    @relation("Provider")
   reviews       Review[]
+  agents        Agent[]
+  a2Atasks      A2ATask[]
+  commentLikes  CommentLike[]
+  rechargeLogs  RechargeLog[]
 }
 
-model Skill {
+model Agent {
+  id            String      @id @default(cuid())
+  name          String
+  description   String
+  version       String
+  endpoint      String // Agent 的 A2A 端点 URL
+  capabilities  Json? // 能力列表（如：["text-generation", "code-review"]）
+  status        AgentStatus @default(ONLINE)
+  healthCheck   String? // 健康检查端点
+  lastHeartbeat DateTime?
+  ownerId       String
+  owner         User        @relation(fields: [ownerId], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  a2Atasks      A2ATask[]
+}
+
+enum AgentStatus {
+  ONLINE
+  OFFLINE
+  DEGRADED
+}
+
+model Capability {
   id          String      @id @default(cuid())
   name        String
   description String
@@ -41,19 +69,32 @@ model Skill {
   downloads   Int         @default(0)
   rating      Float       @default(0)
   status      SkillStatus @default(PENDING)
-  protocol    String      @default("openclaw-native")
+  protocol    String      @default("mcp-tool") // mcp-tool | a2a-service | openclaw-native
+  framework   String      @default("any") // openclaw, langgraph, crewai, generic
 
   authorId String
   author   User   @relation(fields: [authorId], references: [id])
 
   manifest   Json
-  packageUrl String
+  packageUrl String?
+  sourceCode String? // 可选源代码URL
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   purchases Purchase[]
   reviews   Review[]
+  auditLogs AuditLog[]
+}
+
+model AuditLog {
+  id           String     @id @default(cuid())
+  capabilityId String
+  capability   Capability @relation(fields: [capabilityId], references: [id])
+  action       String // uploaded, approved, rejected, suspended
+  reason       String?
+  performedBy  String
+  createdAt    DateTime   @default(now())
 }
 
 enum PriceType {
@@ -69,6 +110,21 @@ enum SkillStatus {
   SUSPENDED
 }
 
+model A2ATask {
+  id          String     @id @default(cuid())
+  clientId    String // 发布任务的用户 ID
+  agentId     String // 目标 Agent ID
+  description String     @db.Text
+  status      TaskStatus @default(PENDING)
+  bid         Float? // 竞标价格（信用点）
+  result      String?    @db.Text // 任务执行结果
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  completedAt DateTime?
+  client      User       @relation(fields: [clientId], references: [id])
+  agent       Agent      @relation(fields: [agentId], references: [id])
+}
+
 model Purchase {
   id      String  @id @default(cuid())
   userId  String
@@ -76,8 +132,8 @@ model Purchase {
   amount  Float
   txHash  String?
 
-  user  User  @relation(fields: [userId], references: [id])
-  skill Skill @relation(fields: [skillId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+  Capability Capability @relation(fields: [skillId], references: [id])
 
   createdAt DateTime @default(now())
 }
@@ -90,8 +146,8 @@ model Review {
   content   String?
   createdAt DateTime @default(now())
 
-  user  User  @relation(fields: [userId], references: [id])
-  skill Skill @relation(fields: [skillId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+  Capability Capability @relation(fields: [skillId], references: [id])
 }
 
 model Post {
@@ -120,6 +176,18 @@ enum PostCategory {
   BUG
 }
 
+model CommentLike {
+  id        String   @id @default(cuid())
+  userId    String
+  commentId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  comment Comment @relation(fields: [commentId], references: [id])
+
+  @@unique([userId, commentId])
+}
+
 model Comment {
   id      String @id @default(cuid())
   content String @db.Text
@@ -135,7 +203,8 @@ model Comment {
   parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
   replies  Comment[] @relation("CommentReplies")
 
-  createdAt DateTime @default(now())
+  createdAt    DateTime      @default(now())
+  commentLikes CommentLike[]
 }
 
 model TokenUsage {
@@ -187,4 +256,15 @@ model AgentService {
   provider User @relation(fields: [providerId], references: [id])
 
   createdAt DateTime @default(now())
+}
+
+model RechargeLog {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Float // 充值金额（美元）
+  credits   Float // 获得的信用点
+  method    String // 充值方式：alipay, wechat, paypal
+  status    String   @default("completed") // completed, failed, pending
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 }

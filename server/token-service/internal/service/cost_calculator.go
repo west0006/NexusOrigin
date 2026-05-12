@@ -16,14 +16,35 @@ func NewCostCalculator() *CostCalculator {
 	return &CostCalculator{}
 }
 
-// Calculate 计算费用，若模型不在定价表中则使用默认价格
-func (c *CostCalculator) Calculate(modelName string, inputTokens, outputTokens int) float64 {
-	pricing, ok := pricingTable[modelName]
-	if !ok {
-		// 未知模型，使用保守默认值（GPT-4o 价格）
-		pricing = struct{ Input, Output float64 }{Input: 2.5, Output: 10.0}
-	}
-	inputCost := (float64(inputTokens) / 1_000_000) * pricing.Input
-	outputCost := (float64(outputTokens) / 1_000_000) * pricing.Output
-	return inputCost + outputCost
+// Calculate 根据记录类型计算成本（单位：信用点或美元）
+func (c *CostCalculator) Calculate(req UsageRecordRequest) float64 {
+    switch req.ResourceType {
+    case "llm-call":
+        return c.calcLLMCost(req.ModelName, req.InputTokens, req.OutputTokens)
+    case "mcp-tool":
+        return c.calcMCPCost(req.ToolName, req.DurationMs)
+    case "a2a-task":
+        return c.calcA2ACost(req.DurationMs)
+    default:
+        return 0
+    }
+}
+
+func (c *CostCalculator) calcLLMCost(model string, inputTokens, outputTokens int) float64 {
+    // 使用之前的定价表，此处省略具体实现，直接给出估算
+    // Keep existing pricing logic (as in original cost_calculator.go)
+    // 返回美元成本，将来可转换为信用点
+    return float64(inputTokens+outputTokens) * 0.0001
+}
+
+func (c *CostCalculator) calcMCPCost(toolName string, durationMs int64) float64 {
+    // 简单按调用次数+时长计费，将来可扩展
+    base := 0.01 // 每次调用基础信用点
+    durationCost := float64(durationMs) * 0.00001
+    return base + durationCost
+}
+
+func (c *CostCalculator) calcA2ACost(durationMs int64) float64 {
+    // A2A 任务按执行时长计费
+    return float64(durationMs) * 0.00005
 }

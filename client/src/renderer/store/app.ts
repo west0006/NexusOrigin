@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type Route = 'dashboard' | 'deployment' | 'skills' | 'community' | 'auth';
+export type Route = 'dashboard' | 'deployment' | 'skills' | 'community' | 'auth' | 'settings' | "agents";
 
 interface AppState {
     currentRoute: Route;

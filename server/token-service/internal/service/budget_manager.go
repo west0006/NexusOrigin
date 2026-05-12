@@ -1,11 +1,11 @@
-// ── server/token-service/internal/service/budget_manager.go
 package service
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
-"fmt"
+
 	"github.com/shrimptank/token-service/internal/repository"
 )
 
@@ -49,7 +49,7 @@ func (m *BudgetManager) GetBudget(ctx context.Context, userID string) (budget, u
 	return
 }
 
-// CheckBudget 异步检查预算并告警（生产环境应集成WebSocket推送）
+// CheckBudget 异步检查预算并告警
 func (m *BudgetManager) CheckBudget(userID string, newCost float64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -67,7 +67,6 @@ func (m *BudgetManager) CheckBudget(userID string, newCost float64) {
 
 	usageRate := (used + newCost) / budget * 100
 	if usageRate >= 95 {
-		// TODO: 实际项目中通过WebSocket推送告警
 		log.Printf("Budget warning for user %s: %.2f%% used ($%.2f remaining)", userID, usageRate, budget-(used+newCost))
 	}
 }

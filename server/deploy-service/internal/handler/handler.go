@@ -1,26 +1,40 @@
-// ─── server/deploy-service/internal/handler/handler.go ────
 package handler
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shrimptank/deploy-service/internal/driver"
+	"github.com/shrimptank/deploy-service/internal/driver/openclaw"
 	"github.com/shrimptank/deploy-service/internal/service"
 )
 
 type DeployHandler struct {
-	svc *service.DeployService
+	svc        *service.DeployService
+	envChecker *openclaw.EnvChecker
 }
 
 func NewDeployHandler() *DeployHandler {
-	return &DeployHandler{svc: service.NewDeployService()}
+	return &DeployHandler{
+		svc:        service.NewDeployService(),
+		envChecker: openclaw.NewEnvChecker(),
+	}
 }
 
 func (h *DeployHandler) getDriver(c *gin.Context) (driver.AgentDriver, string, error) {
 	framework := c.Param("framework")
 	d, err := h.svc.GetDriver(framework)
 	return d, framework, err
+}
+
+func (h *DeployHandler) CheckEnv(c *gin.Context) {
+	result, err := h.envChecker.Check(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *DeployHandler) Install(c *gin.Context) {
@@ -89,11 +103,8 @@ func (h *DeployHandler) GetLogs(c *gin.Context) {
 		return
 	}
 	lines := c.DefaultQuery("lines", "50")
-	lineCount := 50
-	if n, ok := parseInt(lines); ok {
-		lineCount = n
-	}
-	logs, err := d.GetLogs(c.Request.Context(), lineCount)
+	n, _ := strconv.Atoi(lines)
+	logs, err := d.GetLogs(c.Request.Context(), n)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -112,15 +123,4 @@ func (h *DeployHandler) Uninstall(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true})
-}
-
-func parseInt(s string) (int, bool) {
-	n := 0
-	for _, ch := range s {
-		if ch < '0' || ch > '9' {
-			return 0, false
-		}
-		n = n*10 + int(ch-'0')
-	}
-	return n, true
 }

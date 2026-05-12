@@ -1,4 +1,3 @@
-// ─── server/token-service/internal/handler/token.go ───────
 package handler
 
 import (
@@ -16,12 +15,16 @@ func NewTokenHandler(svc *service.TokenCounter) *TokenHandler {
 	return &TokenHandler{svc: svc}
 }
 
+// 统一的记录请求，支持多种资源类型
 type recordReq struct {
 	UserID       string `json:"userId" binding:"required"`
-	ModelName    string `json:"modelName" binding:"required"`
-	InputTokens  int    `json:"inputTokens" binding:"required"`
-	OutputTokens int    `json:"outputTokens" binding:"required"`
-	SkillID      string `json:"skillId"`
+	ResourceType string `json:"resourceType" binding:"required"` // "llm-call", "mcp-tool", "a2a-task"
+	ModelName    string `json:"modelName,omitempty"`
+	InputTokens  int    `json:"inputTokens,omitempty"`
+	OutputTokens int    `json:"outputTokens,omitempty"`
+	ToolName     string `json:"toolName,omitempty"`
+	DurationMs   int64  `json:"durationMs,omitempty"`
+	SkillID      string `json:"skillId,omitempty"`
 }
 
 func (h *TokenHandler) RecordUsage(c *gin.Context) {
@@ -33,9 +36,12 @@ func (h *TokenHandler) RecordUsage(c *gin.Context) {
 
 	usage, err := h.svc.RecordUsage(service.UsageRecordRequest{
 		UserID:       req.UserID,
+		ResourceType: req.ResourceType,
 		ModelName:    req.ModelName,
 		InputTokens:  req.InputTokens,
 		OutputTokens: req.OutputTokens,
+		ToolName:     req.ToolName,
+		DurationMs:   req.DurationMs,
 		SkillID:      req.SkillID,
 	})
 	if err != nil {
@@ -45,29 +51,30 @@ func (h *TokenHandler) RecordUsage(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"id":        usage.ID,
-		"costUsd":   usage.CostUSD,
+		"cost":      usage.CostAmount,
 		"timestamp": usage.CreatedAt,
 	})
 }
 
 func (h *TokenHandler) GetUserUsage(c *gin.Context) {
 	userID := c.Param("userId")
-	tokens, cost, err := h.svc.GetUserUsage(userID)
+	resourceType := c.DefaultQuery("resourceType", "")
+	cost, err := h.svc.GetUserUsage(userID, resourceType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"userId":      userID,
-		"totalTokens": tokens,
-		"totalCost":   cost,
+		"userId":    userID,
+		"totalCost": cost,
 	})
 }
 
 func (h *TokenHandler) GetUserUsageByPeriod(c *gin.Context) {
 	userID := c.Param("userId")
 	period := c.DefaultQuery("period", "day")
-	results, err := h.svc.GetUserUsageByPeriod(userID, period)
+	resourceType := c.DefaultQuery("resourceType", "")
+	data, err := h.svc.GetUserUsageByPeriod(userID, period, resourceType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -75,6 +82,6 @@ func (h *TokenHandler) GetUserUsageByPeriod(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"userId": userID,
 		"period": period,
-		"data":   results,
+		"data":   data,
 	})
 }
