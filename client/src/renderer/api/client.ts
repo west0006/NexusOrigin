@@ -1,4 +1,4 @@
-// ─── client/src/renderer/api/client.ts ────────────────────
+// client/src/renderer/api/client.ts
 const BASE_URL = 'http://localhost:3000/api/v1';
 
 export async function apiClient<T>(
@@ -6,18 +6,15 @@ export async function apiClient<T>(
     options: RequestInit = {}
 ): Promise<T> {
     const token = localStorage.getItem('accessToken');
-
-    // 构建固定的请求头
-    const customHeaders: Record<string, string> = {
+    const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 
-    // 合并外部传入的 headers（假设为普通对象）
-    const headers: Record<string, string> = {
-        ...customHeaders,
-        ...(options.headers as Record<string, string> | undefined),
-    };
+    // 合并外部 headers（注意不要覆盖 Authorization）
+    if (options.headers) {
+        Object.assign(headers, options.headers);
+    }
 
     const res = await fetch(`${BASE_URL}${endpoint}`, {
         ...options,
@@ -25,6 +22,12 @@ export async function apiClient<T>(
     });
 
     if (!res.ok) {
+        if (res.status === 401) {
+            // Token 失效，清除本地数据（但不跳转，交给调用方处理）
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('user');
+            throw new Error('登录已过期，请重新登录');
+        }
         const error = await res.json().catch(() => ({ message: res.statusText }));
         throw new Error(error.message || 'Request failed');
     }

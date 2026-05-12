@@ -39,3 +39,17 @@ async function bootstrap(): Promise<void> {
 }
 
 void bootstrap();
+
+// 启动顺序
+
+// cd server/api-gateway
+// pnpm dev
+
+// cd client
+// pnpm dev
+
+// cd server/token-service
+// go run cmd/server/main.go
+
+// cd docker
+// docker-compose up -d

@@ -2,7 +2,7 @@
   "name": "shrimptank-platform",
   "private": true,
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "npx rimraf dist && npx nest build && npx nest start --watch",
     "build": "turbo build",
     "lint": "turbo lint",
     "test": "turbo test",

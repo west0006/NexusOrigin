@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { PostController } from './post.controller';
 import { PostService } from './post.service';
-// 如有 CommentController 和 CommentService 也一并引入
+import { CommentController } from './comment.controller';
+import { CommentService } from './comment.service';
 
 @Module({
-    controllers: [PostController],
-    providers: [PostService],
+    controllers: [PostController, CommentController],
+    providers: [PostService, CommentService],
 })
 export class CommunityModule {}

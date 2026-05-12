@@ -1,7 +1,6 @@
-// ─── client/src/renderer/store/app.ts ─────────────────────
 import { create } from 'zustand';
 
-type Route = 'dashboard' | 'deployment' | 'skills' | 'community';
+export type Route = 'dashboard' | 'deployment' | 'skills' | 'community' | 'auth';
 
 interface AppState {
     currentRoute: Route;
@@ -10,5 +9,5 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
     currentRoute: 'dashboard',
-    setRoute: (route: Route) => set({ currentRoute: route }),
+    setRoute: (route) => set({ currentRoute: route }),
 }));

@@ -40,4 +40,14 @@ export class PostService {
         ]);
         return { posts, total };
     }
+
+    async getById(id: string) {
+        return this.prisma.post.findUnique({
+            where: { id },
+            include: {
+                author: { select: { id: true, username: true } },
+                comments: { include: { author: { select: { id: true, username: true } } }, orderBy: { createdAt: 'asc' } },
+            },
+        });
+    }
 }

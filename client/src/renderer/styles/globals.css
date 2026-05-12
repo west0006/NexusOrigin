@@ -1,0 +1,215 @@
+/* client/src/renderer/styles/globals.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+:root {
+    /* ========== 色彩体系 ========== */
+    /* 主色调（可替换为“同行”品牌色） */
+    --color-primary: #0f62fe;
+    --color-primary-hover: #0050e6;
+    --color-primary-pressed: #002d9c;
+    --color-primary-light: rgba(15, 98, 254, 0.08);
+
+    /* 中性色（GitHub 风格灰阶） */
+    --color-canvas: #ffffff;
+    --color-canvas-inset: #f6f8fa;
+    --color-surface-1: #eaeef2;
+    --color-surface-2: #d0d7de;
+    --color-border: #d0d7de;
+    --color-border-muted: #d8dee4;
+
+    /* 文字色 */
+    --color-ink: #1f2328;
+    --color-ink-muted: #656d76;
+    --color-ink-subtle: #8c959f;
+    --color-inverse-ink: #ffffff;
+
+    /* 语义色 */
+    --color-success: #1a7f37;
+    --color-success-bg: #dafbe1;
+    --color-warning: #9a6700;
+    --color-warning-bg: #fff8c5;
+    --color-error: #cf222e;
+    --color-error-bg: #ffebe9;
+    --color-info: #0f62fe;
+    --color-info-bg: #e5f0ff;
+
+    /* ========== 字体 ========== */
+    --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+    --font-family-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+    /* 字号（基于 16px 基准） */
+    --text-display: 2.5rem;    /* 40px */
+    --text-headline: 2rem;     /* 32px */
+    --text-title: 1.5rem;      /* 24px */
+    --text-subhead: 1.25rem;   /* 20px */
+    --text-body-lg: 1.125rem;  /* 18px */
+    --text-body: 1rem;         /* 16px */
+    --text-body-sm: 0.875rem;  /* 14px */
+    --text-caption: 0.75rem;   /* 12px */
+
+    --font-weight-normal: 400;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+
+    --line-height-tight: 1.25;
+    --line-height-normal: 1.5;
+
+    /* ========== 圆角（GitHub 风格） ========== */
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-full: 9999px;
+
+    /* ========== 阴影（微妙层级） ========== */
+    --shadow-inset: inset 0 1px 0 rgba(208, 215, 222, 0.2);
+    --shadow-card: 0 1px 0 rgba(31, 35, 40, 0.04);
+    --shadow-card-hover: 0 3px 6px rgba(140, 149, 159, 0.15);
+    --shadow-dropdown: 0 8px 24px rgba(140, 149, 159, 0.2);
+    --shadow-modal: 0 1px 0 rgba(31, 35, 40, 0.04), 0 0 0 1px rgba(31, 35, 40, 0.04);
+
+    /* ========== 间距（基于 4px） ========== */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+    --space-8: 64px;
+    --space-section: 96px;
+
+    /* ========== 布局 ========== */
+    --max-width: 1280px;
+    --sidebar-width: 240px;
+    --topnav-height: 56px;
+    --footer-height: 64px;
+
+    /* ========== 动效 ========== */
+    --transition-fast: 80ms ease-out;
+    --transition-normal: 200ms ease-out;
+}
+/* 全局重置 */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-family: var(--font-family-base);
+    font-size: var(--text-body);
+    font-weight: var(--font-weight-normal);
+    line-height: var(--line-height-normal);
+    color: var(--color-ink);
+    background-color: var(--color-canvas-inset);
+}
+
+a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+a:hover {
+    text-decoration: underline;
+}
+
+img {
+    max-width: 100%;
+    display: block;
+}
+
+/* 工具类 */
+.container {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 var(--space-5);
+}
+
+.card {
+    background: var(--color-canvas);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+}
+
+.card:hover {
+    box-shadow: var(--shadow-card-hover);
+}
+
+.button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 5px 16px;
+    font-size: var(--text-body-sm);
+    font-weight: var(--font-weight-semibold);
+    line-height: 20px;
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+    user-select: none;
+    white-space: nowrap;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+}
+
+.button:hover {
+    background: var(--color-surface-1);
+}
+
+.button:active {
+    background: var(--color-surface-2);
+}
+
+.button-primary {
+    background: var(--color-primary);
+    color: var(--color-inverse-ink);
+    border-color: var(--color-primary);
+}
+
+.button-primary:hover {
+    background: var(--color-primary-hover);
+}
+
+.button-primary:active {
+    background: var(--color-primary-pressed);
+}
+
+.button-danger {
+    color: var(--color-error);
+    border-color: var(--color-error);
+}
+
+.button-danger:hover {
+    background: var(--color-error-bg);
+}
+
+.input {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 5px 12px;
+    font-size: var(--text-body-sm);
+    line-height: 20px;
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.input::placeholder {
+    color: var(--color-ink-subtle);
+}

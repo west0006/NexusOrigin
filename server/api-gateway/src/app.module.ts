@@ -8,7 +8,13 @@ import { SkillModule } from './modules/skill/skill.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
-    imports: [ ConfigModule.forRoot({ isGlobal: true }),PrismaModule, AuthModule, UserModule, CommunityModule, SkillModule],
+    imports: [ ConfigModule.forRoot({ isGlobal: true }),
+        PrismaModule,
+        AuthModule,
+        UserModule,
+        CommunityModule,
+        SkillModule
+    ],
 })
 export class AppModule {}
 

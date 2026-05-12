@@ -1,5 +1,5 @@
-// ── auth/auth.module.ts ───────────────────────────────────
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -9,9 +9,13 @@ import { JwtStrategy } from './jwt.strategy';
 @Module({
     imports: [
         PassportModule,
-        JwtModule.register({
-            secret: process.env.JWT_SECRET ?? 'dev-secret',
-            signOptions: { expiresIn: '15m' },
+        JwtModule.registerAsync({
+            imports: [ConfigModule],
+            inject: [ConfigService],
+            useFactory: (configService: ConfigService) => ({
+                secret: configService.get<string>('JWT_SECRET') || 'dev-secret',
+                signOptions: { expiresIn: '15m' },
+            }),
         }),
     ],
     providers: [AuthService, JwtStrategy],

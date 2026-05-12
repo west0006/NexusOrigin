@@ -1,5 +1,5 @@
 // ── community/post.controller.ts ──────────────────────────
-import { Controller, Post, Get, Body, Query, UseGuards, Request } from '@nestjs/common';
+import {Controller, Post, Get, Body, Query, UseGuards, Request, Param} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PostService } from './post.service';
 import { PostCategory } from '@prisma/client';
@@ -40,4 +40,9 @@ export class PostController {
     async list(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
         return this.postService.list(Number(page) || 1, Number(pageSize) || 20);
     }
+    @Get(':id')
+    async getOne(@Param('id') id: string) {
+        return this.postService.getById(id);
+    }
+
 }
