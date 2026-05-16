@@ -8,6 +8,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import {CapabilityModule} from "./modules/capability/capability.module";
 import { AgentRegistryModule } from './modules/agent-registry/agent-registry.module';
 import {A2AGatewayModule} from "./modules/a2a-gateway/a2a-gateway.module";
+import {ModelGatewayModule} from "./modules/model-gateway/model-gateway.module";
 
 @Module({
     imports: [ ConfigModule.forRoot({ isGlobal: true }),
@@ -18,6 +19,7 @@ import {A2AGatewayModule} from "./modules/a2a-gateway/a2a-gateway.module";
         CapabilityModule,
         AgentRegistryModule,
         A2AGatewayModule,
+        ModelGatewayModule,
     ],
 })
 export class AppModule {}

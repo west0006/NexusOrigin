@@ -8,28 +8,34 @@ interface Props {
     children: React.ReactNode;
     footer?: React.ReactNode;
     width?: number;
+    /** 当前聚焦的元素 ID（用于高亮） */
+    focusedId?: string;
 }
 
 export const FocusPanel: React.FC<Props> = ({
-                                                visible,
-                                                title,
-                                                subtitle,
-                                                onClose,
-                                                children,
-                                                footer,
-                                                width = 380,
+                                                visible, title, subtitle, onClose, children, footer, width = 380, focusedId,
                                             }) => {
     const panelRef = useRef<HTMLDivElement>(null);
 
+    // 全局 Escape 关闭
     useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && visible) {
-                onClose();
-            }
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && visible) onClose();
         };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
     }, [visible, onClose]);
+
+    // 为聚焦面板内部的当前聚焦卡片添加呼吸光效（通过 CSS 变量控制）
+    useEffect(() => {
+        if (!panelRef.current || !focusedId) return;
+        const el = panelRef.current.querySelector(`[data-focus-id="${focusedId}"]`) as HTMLElement;
+        if (el) {
+            el.style.animation = 'focus-pulse 2s infinite';
+            el.style.borderLeft = '3px solid var(--color-focus-border)';
+            el.style.backgroundColor = 'var(--color-focus-bg)';
+        }
+    }, [focusedId, visible]);
 
     return (
         <div
@@ -48,6 +54,7 @@ export const FocusPanel: React.FC<Props> = ({
         >
             {visible && (
                 <>
+                    {/* 头部 */}
                     <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                             <div style={{ fontSize: 14, fontWeight: 600 }}>{title}</div>
@@ -56,18 +63,19 @@ export const FocusPanel: React.FC<Props> = ({
                         <button
                             onClick={onClose}
                             style={{
-                                background: 'none',
-                                border: 'none',
-                                fontSize: 18,
-                                cursor: 'pointer',
-                                color: 'var(--color-ink-muted)',
-                                lineHeight: 1,
+                                background: 'none', border: 'none', fontSize: 18, cursor: 'pointer',
+                                color: 'var(--color-ink-muted)', lineHeight: 1,
                             }}
                         >
                             ✕
                         </button>
                     </div>
-                    <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>{children}</div>
+
+                    {/* 内容区，使用 ContextTimeline 包裹 */}
+                    <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
+                        {children}
+                    </div>
+
                     {footer && (
                         <div style={{ padding: '12px 16px', borderTop: '1px solid var(--color-border)' }}>
                             {footer}

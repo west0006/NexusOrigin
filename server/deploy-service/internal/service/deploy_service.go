@@ -7,6 +7,8 @@ import (
 
 	"github.com/shrimptank/deploy-service/internal/driver"
 	"github.com/shrimptank/deploy-service/internal/driver/openclaw"
+	"github.com/shrimptank/deploy-service/internal/driver/langgraph"
+	"github.com/shrimptank/deploy-service/internal/driver/crewai"
 )
 
 // DeployService 管理多个框架的部署实例
@@ -21,6 +23,8 @@ func NewDeployService() *DeployService {
 	}
 	// 注册已实现的 Driver
 	svc.registerDriver("openclaw", openclaw.NewDriver())
+	svc.registerDriver("langgraph", langgraph.NewDriver())
+    svc.registerDriver("crewai", crewai.NewDriver())
 	return svc
 }
 

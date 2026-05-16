@@ -1,5 +1,5 @@
 // client/src/renderer/pages/AgentManager.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { apiClient } from '../api/client';
 import { useUserStore } from '../store/user.store';
 import { FocusPanel } from '../components/FocusPanel';
@@ -14,6 +14,7 @@ interface Agent {
     endpoint: string;
     status: 'ONLINE' | 'OFFLINE' | 'DEGRADED';
     capabilities?: string[];
+    reputation?: number;
     lastHeartbeat?: string;
     owner: { id: string; username: string };
     createdAt: string;
@@ -24,7 +25,6 @@ export const AgentManager: React.FC = () => {
     const confirm = useConfirm();
     const [agents, setAgents] = useState<Agent[]>([]);
     const [loading, setLoading] = useState(true);
-    const [focusAgent, setFocusAgent] = useState<Agent | null>(null);
     const [showForm, setShowForm] = useState(false);
     const [form, setForm] = useState({
         name: '',
@@ -33,27 +33,34 @@ export const AgentManager: React.FC = () => {
         endpoint: '',
         capabilities: '',
     });
-    const [message, setMessage] = useState('');
 
-    const fetchAgents = async () => {
+    // 聚焦状态
+    const [focusAgent, setFocusAgent] = useState<Agent | null>(null);
+    const [focusPanelVisible, setFocusPanelVisible] = useState(false);
+
+    const fetchAgents = useCallback(async () => {
         try {
             const data = await apiClient<{ agents: Agent[]; total: number }>('/agents');
             setAgents(data.agents);
+            // 如果聚焦面板打开，同步更新聚焦的 Agent 数据
             if (focusAgent) {
                 const updated = data.agents.find(a => a.id === focusAgent.id);
                 if (updated) setFocusAgent(updated);
-                else setFocusAgent(null);
+                else {
+                    setFocusAgent(null);
+                    setFocusPanelVisible(false);
+                }
             }
         } catch (e) {
             console.error(e);
         } finally {
             setLoading(false);
         }
-    };
+    }, [focusAgent]);
 
     useEffect(() => {
         fetchAgents();
-    }, []);
+    }, [fetchAgents]);
 
     const handleRegister = async () => {
         if (!form.name || !form.endpoint) {
@@ -65,16 +72,13 @@ export const AgentManager: React.FC = () => {
                 method: 'POST',
                 body: JSON.stringify({
                     ...form,
-                    capabilities: form.capabilities
-                        .split(',')
-                        .map(c => c.trim())
-                        .filter(Boolean),
+                    capabilities: form.capabilities.split(',').map(c => c.trim()).filter(Boolean),
                 }),
             });
             setShowForm(false);
             setForm({ name: '', description: '', version: '1.0.0', endpoint: '', capabilities: '' });
             fetchAgents();
-            showToast('Agent注册成功', 'success');
+            showToast('Agent 注册成功', 'success');
         } catch (e: any) {
             showToast('注册失败: ' + e.message, 'error');
         }
@@ -92,15 +96,16 @@ export const AgentManager: React.FC = () => {
 
     const handleDeregister = async (agentId: string) => {
         const ok = await confirm({
-            title: '注销Agent',
-            message: '确定要注销此Agent吗？此操作不可撤销。',
+            title: '注销 Agent',
+            message: '确定要注销此 Agent 吗？此操作不可撤销。',
         });
         if (!ok) return;
         try {
             await apiClient(`/agents/${agentId}`, { method: 'DELETE' });
             setFocusAgent(null);
+            setFocusPanelVisible(false);
             fetchAgents();
-            showToast('Agent已注销', 'success');
+            showToast('Agent 已注销', 'success');
         } catch (e: any) {
             showToast('注销失败: ' + e.message, 'error');
         }
@@ -111,48 +116,22 @@ export const AgentManager: React.FC = () => {
     return (
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Agent管理</h2>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Agent 管理</h2>
                 {user && (
                     <button className="button button-primary" onClick={() => setShowForm(!showForm)}>
-                        {showForm ? '取消' : '注册Agent'}
+                        {showForm ? '取消' : '注册 Agent'}
                     </button>
                 )}
             </div>
 
-            {message && (
-                <div
-                    style={{
-                        padding: 12,
-                        marginBottom: 16,
-                        background: 'var(--color-success-bg)',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: 14,
-                    }}
-                >
-                    {message}
-                    <button
-                        style={{
-                            marginLeft: 16,
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: 'var(--color-primary)',
-                        }}
-                        onClick={() => setMessage('')}
-                    >
-                        关闭
-                    </button>
-                </div>
-            )}
-
             {/* 注册表单 */}
             {showForm && (
                 <div className="card" style={{ padding: 24, marginBottom: 24 }}>
-                    <h3 style={{ marginBottom: 16 }}>注册新Agent</h3>
+                    <h3 style={{ marginBottom: 16 }}>注册新 Agent</h3>
                     <div style={{ display: 'grid', gap: 12 }}>
                         <input
                             className="input"
-                            placeholder="Agent名称 *"
+                            placeholder="Agent 名称 *"
                             value={form.name}
                             onChange={e => setForm({ ...form, name: e.target.value })}
                         />
@@ -165,24 +144,22 @@ export const AgentManager: React.FC = () => {
                         />
                         <input
                             className="input"
-                            placeholder="A2A端点URL *"
+                            placeholder="A2A 端点 URL *"
                             value={form.endpoint}
                             onChange={e => setForm({ ...form, endpoint: e.target.value })}
                         />
                         <input
                             className="input"
-                            placeholder="能力标签 (逗号分隔)"
+                            placeholder="能力标签 (逗号分隔，如: translation,code-review)"
                             value={form.capabilities}
                             onChange={e => setForm({ ...form, capabilities: e.target.value })}
                         />
-                        <button className="button button-primary" onClick={handleRegister}>
-                            注册
-                        </button>
+                        <button className="button button-primary" onClick={handleRegister}>注册</button>
                     </div>
                 </div>
             )}
 
-            {/* Agent列表 */}
+            {/* Agent 列表 */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
                 {agents.map(agent => (
                     <div
@@ -198,8 +175,9 @@ export const AgentManager: React.FC = () => {
                                         ? 'var(--color-warning)'
                                         : 'var(--color-error)'
                             }`,
+                            transition: 'box-shadow 0.2s, transform 0.2s',
                         }}
-                        onClick={() => setFocusAgent(agent)}
+                        onClick={() => { setFocusAgent(agent); setFocusPanelVisible(true); }}
                     >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                             <h3 style={{ fontSize: 16, fontWeight: 600 }}>{agent.name}</h3>
@@ -229,84 +207,79 @@ export const AgentManager: React.FC = () => {
                         <p style={{ fontSize: 14, color: 'var(--color-ink-muted)', marginBottom: 8 }}>
                             {agent.description || '暂无描述'}
                         </p>
-                        <div style={{ fontSize: 12, color: 'var(--color-ink-subtle)' }}>
+                        <div style={{ fontSize: 12, color: 'var(--color-ink-subtle)', marginBottom: 12 }}>
                             {agent.capabilities?.map(c => (
-                                <span
-                                    key={c}
-                                    style={{
-                                        marginRight: 8,
-                                        background: 'var(--color-surface-1)',
-                                        padding: '1px 6px',
-                                        borderRadius: 4,
-                                    }}
-                                >
-                  {c}
-                </span>
+                                <span key={c} style={{ marginRight: 8, background: 'var(--color-surface-1)', padding: '1px 6px', borderRadius: 4 }}>{c}</span>
                             ))}
                         </div>
-                        <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                        {agent.reputation !== undefined && (
+                            <div style={{ fontSize: 12, marginBottom: 8 }}>
+                                <span style={{ color: 'var(--color-warning)', fontWeight: 600 }}>⭐ {agent.reputation.toFixed(1)}</span>
+                                <span style={{ color: 'var(--color-ink-muted)', marginLeft: 4 }}>信誉分</span>
+                            </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 8 }}>
                             <button
                                 className="button"
                                 style={{ fontSize: 12 }}
-                                onClick={e => {
-                                    e.stopPropagation();
-                                    handleHeartbeat(agent.id);
-                                }}
+                                onClick={e => { e.stopPropagation(); handleHeartbeat(agent.id); }}
                             >
-                                心跳
+                                发送心跳
                             </button>
                         </div>
                     </div>
                 ))}
 
                 {agents.length === 0 && (
-                    <div
-                        className="card"
-                        style={{
-                            padding: 48,
-                            textAlign: 'center',
-                            color: 'var(--color-ink-muted)',
-                            gridColumn: '1 / -1',
-                        }}
-                    >
+                    <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--color-ink-muted)', gridColumn: '1 / -1' }}>
                         <div style={{ fontSize: 64, marginBottom: 16 }}>🤖</div>
-                        <p>还没有注册任何Agent</p>
-                        <p style={{ fontSize: 13, marginTop: 8 }}>
-                            注册你的第一个AI Agent，让它加入枢元网络
-                        </p>
+                        <p>还没有注册任何 Agent</p>
+                        <p style={{ fontSize: 13, marginTop: 8 }}>注册你的第一个 AI Agent，让它加入枢元网络</p>
                     </div>
                 )}
             </div>
 
-            {/* 聚焦面板 */}
+            {/* 聚焦面板：Agent 详情 */}
             <FocusPanel
-                visible={!!focusAgent}
-                title={focusAgent?.name || 'Agent详情'}
+                visible={focusPanelVisible}
+                title={focusAgent?.name || 'Agent 详情'}
                 subtitle={focusAgent?.status}
-                onClose={() => setFocusAgent(null)}
+                onClose={() => setFocusPanelVisible(false)}
+                focusedId={focusAgent?.id}
             >
                 {focusAgent && (
-                    <div>
-                        <p><strong>版本:</strong> {focusAgent.version}</p>
-                        <p>
-                            <strong>端点:</strong>{' '}
-                            <code style={{ fontSize: 12 }}>{focusAgent.endpoint}</code>
-                        </p>
-                        <p>
-                            <strong>最后心跳:</strong>{' '}
-                            {focusAgent.lastHeartbeat
-                                ? new Date(focusAgent.lastHeartbeat).toLocaleString()
-                                : '从未'}
-                        </p>
-                        <p>
-                            <strong>能力:</strong> {focusAgent.capabilities?.join(', ') || '无'}
-                        </p>
-                        <p><strong>拥有者:</strong> {focusAgent.owner?.username}</p>
-                        <p>
-                            <strong>注册时间:</strong>{' '}
-                            {new Date(focusAgent.createdAt).toLocaleString()}
-                        </p>
-                        <div style={{ marginTop: 16 }}>
+                    <div data-focus-id={focusAgent.id}>
+                        <div style={{ marginBottom: 16 }}>
+                            <div style={{ marginBottom: 8 }}><strong>版本：</strong> {focusAgent.version}</div>
+                            <div style={{ marginBottom: 8 }}>
+                                <strong>端点：</strong>
+                                <code style={{ fontSize: 12, fontFamily: 'var(--font-family-mono)' }}>{focusAgent.endpoint}</code>
+                            </div>
+                            <div style={{ marginBottom: 8 }}>
+                                <strong>最后心跳：</strong>
+                                {focusAgent.lastHeartbeat
+                                    ? new Date(focusAgent.lastHeartbeat).toLocaleString()
+                                    : '从未'}
+                            </div>
+                            <div style={{ marginBottom: 8 }}>
+                                <strong>能力：</strong> {focusAgent.capabilities?.join(', ') || '无'}
+                            </div>
+                            <div style={{ marginBottom: 8 }}>
+                                <strong>拥有者：</strong> {focusAgent.owner?.username}
+                            </div>
+                            {focusAgent.reputation !== undefined && (
+                                <div style={{ marginBottom: 8 }}>
+                                    <strong>信誉分：</strong>
+                                    <span style={{ color: 'var(--color-warning)', fontWeight: 600 }}>
+                    ⭐ {focusAgent.reputation.toFixed(1)}
+                  </span>
+                                </div>
+                            )}
+                            <div style={{ marginBottom: 8 }}>
+                                <strong>注册时间：</strong> {new Date(focusAgent.createdAt).toLocaleString()}
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                             <button
                                 className="button button-primary"
                                 onClick={() => handleHeartbeat(focusAgent.id)}
@@ -315,10 +288,9 @@ export const AgentManager: React.FC = () => {
                             </button>
                             <button
                                 className="button button-danger"
-                                style={{ marginLeft: 8 }}
                                 onClick={() => handleDeregister(focusAgent.id)}
                             >
-                                注销
+                                注销 Agent
                             </button>
                         </div>
                     </div>

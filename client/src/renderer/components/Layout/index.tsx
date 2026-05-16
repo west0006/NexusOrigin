@@ -6,10 +6,14 @@ import { StatusBar } from '../StatusBar';
 const NAV_ITEMS: { route: Route; label: string; icon: string }[] = [
     { route: 'dashboard', label: '仪表盘', icon: '📊' },
     { route: 'deployment', label: '部署', icon: '🚀' },
+    { route: 'modelProviders', label: '模型网关', icon: '⚙️' },
     { route: 'agents', label: 'Agent管理', icon: '🤖' },
+    { route: 'tasks', label: '任务市场', icon: '🛠️' },
     { route: 'skills', label: '能力市场', icon: '🛒' },
     { route: 'community', label: '社区', icon: '💬' },
+    { route: 'costCenter', label: '成本中心', icon: '💰' },
     { route: 'settings', label: '个人中心', icon: '👤' },
+
 ];
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {

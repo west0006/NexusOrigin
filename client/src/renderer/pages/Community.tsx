@@ -290,34 +290,50 @@ export const Community: React.FC = () => {
                     title="聚焦视图"
                     subtitle={focusContext.target?.author?.username}
                     onClose={() => setFocusCommentId(null)}
+                    focusedId={focusCommentId}
                 >
-                    {focusContext.parents.map(p => (
-                        <div key={p.id} style={{ opacity: 0.8, marginBottom: 12, padding: 8, background: 'var(--color-surface-1)', borderRadius: 4 }}>
-                            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>{p.author?.username}</div>
-                            <div style={{ fontSize: 13 }}>{p.content}</div>
-                        </div>
-                    ))}
-                    {focusContext.target && (
-                        <div style={{
-                            backgroundColor: '#F3F0FF',
-                            padding: 12,
-                            borderRadius: 6,
-                            borderLeft: '3px solid var(--color-primary)',
-                            marginBottom: 16,
-                        }}>
-                            <div style={{ fontWeight: 600, marginBottom: 4 }}>{focusContext.target.author?.username}</div>
-                            <div>{focusContext.target.content}</div>
-                        </div>
-                    )}
-                    {focusContext.children.map(child => (
-                        <div key={child.id} style={{ marginTop: 8, paddingLeft: 16, borderLeft: '1px solid var(--color-border)', fontSize: 14, color: '#4B5563' }}>
-                            <div style={{ fontWeight: 600 }}>{child.author?.username}</div>
-                            <div>{child.content}</div>
-                        </div>
-                    ))}
-                    {!focusContext.parents.length && !focusContext.target && !focusContext.children.length && (
-                        <p style={{ color: 'var(--color-ink-muted)', fontSize: 13 }}>点击评论旁的准星图标以聚焦查看上下文</p>
-                    )}
+                    <div style={{ position: 'relative', paddingLeft: 20 }}>
+                        {focusContext.parents.map((p, idx) => (
+                            <div key={p.id} data-focus-id={p.id} style={{
+                                padding: '10px',
+                                marginBottom: 8,
+                                borderLeft: `1px solid var(--color-context-line)`,
+                                background: '#fff',
+                                fontSize: 13,
+                                color: 'var(--color-ink-muted)'
+                            }}>
+                                <div style={{ fontWeight: 600 }}>{p.author?.username}</div>
+                                <div>{p.content}</div>
+                            </div>
+                        ))}
+                        {focusContext.target && (
+                            <div data-focus-id={focusContext.target.id} style={{
+                                padding: '12px',
+                                marginBottom: 12,
+                                borderLeft: '3px solid var(--color-focus-border)',
+                                background: 'var(--color-focus-bg)',
+                                fontSize: 14,
+                                boxShadow: '0 0 0 4px rgba(108,92,231,0.1)',
+                                animation: 'focus-pulse 2s infinite'
+                            }}>
+                                <div style={{ fontWeight: 600 }}>{focusContext.target.author?.username}</div>
+                                <div>{focusContext.target.content}</div>
+                            </div>
+                        )}
+                        {focusContext.children.map((child) => (
+                            <div key={child.id} data-focus-id={child.id} style={{
+                                padding: '10px',
+                                marginBottom: 8,
+                                borderLeft: `1px solid var(--color-context-line)`,
+                                background: 'var(--color-child-bg)',
+                                fontSize: 13,
+                                color: '#4B5563'
+                            }}>
+                                <div style={{ fontWeight: 600 }}>{child.author?.username}</div>
+                                <div>{child.content}</div>
+                            </div>
+                        ))}
+                    </div>
                 </FocusPanel>
             </div>
         );

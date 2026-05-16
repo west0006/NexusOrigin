@@ -1,18 +1,26 @@
-// ─── server/token-service/pkg/tiktoken/tokenizer.go ──────
 package tiktoken
 
-// 提供各模型 token 估算的桩实现，生产环境应集成 tiktoken-go 等库
+import (
+    "github.com/pkoukk/tiktoken-go"
+)
 
-// EstimateTokens 粗略估计字符串的 token 数量
-func EstimateTokens(text string) int {
-	// 简单按字符/4 估算，这里仅作示意
-	count := 0
-	for _, ch := range text {
-		if ch > 127 {
-			count += 2 // 中文等字符约2个token
-		} else {
-			count++
-		}
-	}
-	return count / 2
+// CountTokens 使用 tiktoken 精确计算文本的 Token 数
+func CountTokens(model string, text string) (int, error) {
+    // 根据模型选择编码器
+    encoding := "cl100k_base" // 默认 GPT-4/3.5
+    switch model {
+    case "gpt-4o", "gpt-4o-mini", "gpt-4", "gpt-3.5-turbo":
+        encoding = "cl100k_base"
+    case "text-davinci-003", "text-davinci-002":
+        encoding = "p50k_base"
+    default:
+        encoding = "cl100k_base"
+    }
+
+    tke, err := tiktoken.GetEncoding(encoding)
+    if err != nil {
+        return 0, err
+    }
+    tokens := tke.Encode(text, nil, nil)
+    return len(tokens), nil
 }

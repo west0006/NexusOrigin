@@ -40,10 +40,11 @@ func main() {
 	budgetRepo := repository.NewBudgetRepository(rdb)
 	costCalc := service.NewCostCalculator()
 	budgetMgr := service.NewBudgetManager(budgetRepo, tokenRepo, costCalc)
-	tokenCounter := service.NewTokenCounter(tokenRepo, costCalc) // 修正：不再传入budgetMgr
+	tokenCounter := service.NewTokenCounter(tokenRepo, costCalc, budgetMgr, rdb)
 
 	tokenHandler := handler.NewTokenHandler(tokenCounter)
 	budgetHandler := handler.NewBudgetHandler(budgetMgr)
+
 
 	// Gin 路由设置
 	r := gin.Default()

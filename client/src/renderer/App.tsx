@@ -14,6 +14,9 @@ import {CommandPalette} from "@renderer/components/CommandPalette";
 import {ErrorBoundary} from "@renderer/components/ErrorBoundary";
 import {ToastContainer} from "@renderer/components/Toast";
 import {ConfirmProvider} from "@renderer/contexts/ConfirmContext";
+import {ModelProviders} from "@renderer/pages/ModelProviders";
+import {CostCenter} from "@renderer/pages/CostCenter";
+import {TaskMarket} from "@renderer/pages/TaskMarket";
 
 const PAGE_MAP: Record<Exclude<Route, 'auth'>, React.FC> = {
     dashboard: Dashboard,
@@ -22,6 +25,9 @@ const PAGE_MAP: Record<Exclude<Route, 'auth'>, React.FC> = {
     community: Community,
     settings: Profile,
     agents: AgentManager,
+    modelProviders: ModelProviders,
+    costCenter: CostCenter,
+    tasks: TaskMarket,
 };
 
 const PROTECTED: Route[] = ['skills', 'community', 'agents', 'settings'];

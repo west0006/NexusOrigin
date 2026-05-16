@@ -2,8 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store/app';
 import { FocusPanel } from '../components/FocusPanel';
+import { showToast } from '../components/Toast';
 
-const STEPS = ['环境检测', 'API 配置', '部署安装', '完成'];
+const STEPS = ['环境检测', '框架选择', 'API 配置', '部署安装', '完成'];
 
 interface EnvCheck {
     node: boolean;
@@ -12,7 +13,7 @@ interface EnvCheck {
     pythonVersion?: string;
 }
 
-// 真实环境检测
+// 真实环境检测（调用 deploy-service）
 const detectEnv = async (): Promise<EnvCheck> => {
     try {
         const res = await fetch('http://localhost:8082/api/v1/deploy/env');
@@ -32,6 +33,7 @@ const detectEnv = async (): Promise<EnvCheck> => {
 
 export const DeploymentWizard: React.FC = () => {
     const [step, setStep] = useState(0);
+    const [framework, setFramework] = useState<'openclaw' | 'langgraph' | 'crewai'>('openclaw');
     const [env, setEnv] = useState<EnvCheck | null>(null);
     const [config, setConfig] = useState({
         modelProvider: 'siliconflow',
@@ -57,8 +59,14 @@ export const DeploymentWizard: React.FC = () => {
         if (!config.apiKey) return;
         setInstalling(true);
         setErrorFocus(false);
+        setProgress(0);
+
+        const timer = setInterval(() => {
+            setProgress(prev => Math.min(prev + 10, 90));
+        }, 600);
+
         try {
-            const res = await fetch('http://localhost:8082/api/v1/deploy/openclaw/install', {
+            const res = await fetch(`http://localhost:8082/api/v1/deploy/${framework}/install`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -68,14 +76,17 @@ export const DeploymentWizard: React.FC = () => {
                     autoStart: config.autoStart,
                 }),
             });
+            clearInterval(timer);
+            setProgress(100);
             const result = await res.json();
             if (!res.ok || !result.success) {
                 setErrorMsg(result.error || '安装失败');
                 setErrorFocus(true);
             } else {
-                setStep(3); // 成功
+                setStep(4);
             }
         } catch (e: any) {
+            clearInterval(timer);
             setErrorMsg(e.message || '网络错误');
             setErrorFocus(true);
         } finally {
@@ -91,23 +102,20 @@ export const DeploymentWizard: React.FC = () => {
 
     return (
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: 32 }}>部署 OpenClaw</h2>
-            {/* 步骤条 */}
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: 32 }}>
+                部署 Agent 框架
+            </h2>
+
+            {/* 步骤指示器 */}
             <div style={{ display: 'flex', marginBottom: 40 }}>
                 {STEPS.map((label, index) => (
                     <div key={label} style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
                         <div
                             style={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: '50%',
+                                width: 24, height: 24, borderRadius: '50%',
                                 background: index <= step ? 'var(--color-primary)' : 'var(--color-surface-2)',
-                                color: '#fff',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: 12,
-                                fontWeight: 600,
+                                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 12, fontWeight: 600,
                             }}
                         >
                             {index < step ? '✓' : index + 1}
@@ -122,13 +130,13 @@ export const DeploymentWizard: React.FC = () => {
                 ))}
             </div>
 
-            {/* 步骤内容 */}
+            {/* 步骤0: 环境检测 */}
             {step === 0 && (
                 <div className="card" style={{ padding: 24 }}>
                     <h3 style={{ marginBottom: 16 }}>系统环境</h3>
-                    <CheckRow label="Node.js" pass={env?.node} />
-                    <CheckRow label="Python 3.8+" pass={env?.python} hint={env?.pythonVersion} />
-                    <CheckRow label="磁盘空间" pass={!!env && env.diskSpace >= 5} hint={`${env?.diskSpace ?? 0}GB`} />
+                    <CheckRow label="Node.js (系统级)" pass={env?.node} />
+                    <CheckRow label="Python 3.8+ (依赖级)" pass={env?.python} hint={env?.pythonVersion} />
+                    <CheckRow label="磁盘空间 (系统级)" pass={!!env && env.diskSpace >= 5} hint={`${env?.diskSpace ?? 0}GB`} />
                     <button
                         className="button button-primary"
                         disabled={!env?.node || !env?.python}
@@ -140,7 +148,29 @@ export const DeploymentWizard: React.FC = () => {
                 </div>
             )}
 
+            {/* 步骤1: 框架选择 */}
             {step === 1 && (
+                <div className="card" style={{ padding: 24 }}>
+                    <h3 style={{ marginBottom: 16 }}>选择 Agent 框架</h3>
+                    <select
+                        className="input"
+                        style={{ width: '100%', marginBottom: 16 }}
+                        value={framework}
+                        onChange={e => setFramework(e.target.value as any)}
+                    >
+                        <option value="openclaw">OpenClaw</option>
+                        <option value="langgraph">LangGraph</option>
+                        <option value="crewai">CrewAI</option>
+                    </select>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="button" onClick={() => setStep(0)}>上一步</button>
+                        <button className="button button-primary" onClick={() => setStep(2)}>下一步</button>
+                    </div>
+                </div>
+            )}
+
+            {/* 步骤2: API 配置 */}
+            {step === 2 && (
                 <div className="card" style={{ padding: 24 }}>
                     <h3 style={{ marginBottom: 16 }}>API 配置</h3>
                     <select
@@ -162,33 +192,29 @@ export const DeploymentWizard: React.FC = () => {
                         onChange={e => setConfig({ ...config, apiKey: e.target.value })}
                     />
                     <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="button" onClick={() => setStep(0)}>
-                            上一步
-                        </button>
-                        <button className="button button-primary" disabled={!config.apiKey} onClick={() => setStep(2)}>
+                        <button className="button" onClick={() => setStep(1)}>上一步</button>
+                        <button className="button button-primary" disabled={!config.apiKey} onClick={() => setStep(3)}>
                             开始安装
                         </button>
                     </div>
                 </div>
             )}
 
-            {step === 2 && (
+            {/* 步骤3: 安装中 */}
+            {step === 3 && (
                 <div className="card" style={{ padding: 24, textAlign: 'center' }}>
-                    <h3 style={{ marginBottom: 16 }}>正在安装...</h3>
+                    <h3 style={{ marginBottom: 16 }}>正在安装 {framework} ...</h3>
                     <div style={{ height: 8, background: 'var(--color-surface-1)', borderRadius: 4, marginBottom: 12 }}>
                         <div
                             style={{
-                                height: 8,
-                                background: 'var(--color-primary)',
-                                borderRadius: 4,
-                                width: `${progress}%`,
-                                transition: 'width 0.2s',
+                                height: 8, background: 'var(--color-primary)', borderRadius: 4,
+                                width: `${progress}%`, transition: 'width 0.2s',
                             }}
                         />
                     </div>
                     <div style={{ fontSize: 14, color: 'var(--color-ink-muted)' }}>{progress}%</div>
-                    {!installing && progress === 0 && (
-                        <button className="button button-primary" onClick={handleInstall}>
+                    {!installing && progress < 100 && (
+                        <button className="button button-primary" onClick={handleInstall} style={{ marginTop: 12 }}>
                             开始安装
                         </button>
                     )}
@@ -200,11 +226,14 @@ export const DeploymentWizard: React.FC = () => {
                 </div>
             )}
 
-            {step === 3 && (
+            {/* 步骤4: 完成 */}
+            {step === 4 && (
                 <div className="card" style={{ padding: 32, textAlign: 'center' }}>
                     <div style={{ fontSize: 48 }}>✅</div>
                     <h3 style={{ marginBottom: 8 }}>部署成功</h3>
-                    <p style={{ color: 'var(--color-ink-muted)', marginBottom: 16 }}>OpenClaw 已安装完毕。</p>
+                    <p style={{ color: 'var(--color-ink-muted)', marginBottom: 16 }}>
+                        {framework} 已安装完毕。
+                    </p>
                     <button className="button button-primary" onClick={() => setRoute('dashboard')}>
                         前往仪表盘
                     </button>
@@ -221,51 +250,31 @@ export const DeploymentWizard: React.FC = () => {
                 <div>
                     <h4 style={{ marginBottom: 12 }}>根因分析</h4>
                     <p style={{ color: 'var(--color-ink-muted)' }}>
-                        pip 安装过程连接超时，可能由于网络不稳定或 PyPI 镜像源暂时不可用。
+                        安装过程遇到错误，请查看下方日志并尝试社区解决方案。
                     </p>
 
                     <h4 style={{ marginTop: 20, marginBottom: 12 }}>上下文日志</h4>
-                    <div
-                        style={{
-                            background: '#1e1e1e',
-                            color: '#0f0',
-                            padding: 12,
-                            borderRadius: 6,
-                            fontFamily: 'monospace',
-                            fontSize: 12,
-                            maxHeight: 180,
-                            overflow: 'auto',
-                            whiteSpace: 'pre-wrap',
-                        }}
-                    >
+                    <div style={{
+                        background: '#1e1e1e', color: '#0f0', padding: 12, borderRadius: 6,
+                        fontFamily: 'var(--font-family-mono)', fontSize: 12, maxHeight: 180,
+                        overflow: 'auto', whiteSpace: 'pre-wrap',
+                    }}>
                         {errorMsg}
                     </div>
 
                     <h4 style={{ marginTop: 20, marginBottom: 12 }}>社区解决方案</h4>
                     <div style={{ padding: 12, background: 'var(--color-surface-1)', borderRadius: 6 }}>
-                        <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                            [讨论] pip 安装超时的解决方式
-                        </div>
-                        <div style={{ fontSize: 13 }}>建议切换国内镜像源：运行 pip config set global.index-url https://mirror.sjtu.edu.cn/pypi/web/simple</div>
-                        <button className="button" style={{ marginTop: 8 }}>
-                            一键应用修复
-                        </button>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>[讨论] 类似安装错误的解决方式</div>
+                        <div style={{ fontSize: 13 }}>建议检查网络连接、Python 版本，或切换到国内镜像源。</div>
+                        <button className="button" style={{ marginTop: 8 }}>一键应用修复</button>
                     </div>
 
                     <div style={{ marginTop: 24 }}>
                         <h4 style={{ marginBottom: 12 }}>手动修复</h4>
-                        <input
-                            className="input"
-                            style={{ width: '100%', marginBottom: 8 }}
-                            placeholder="输入命令..."
-                        />
+                        <input className="input" style={{ width: '100%', marginBottom: 8 }} placeholder="输入命令..." />
                         <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="button button-primary" onClick={handleRetry}>
-                                重试当前步骤
-                            </button>
-                            <button className="button" onClick={() => setErrorFocus(false)}>
-                                返回
-                            </button>
+                            <button className="button button-primary" onClick={handleRetry}>重试当前步骤</button>
+                            <button className="button" onClick={() => setErrorFocus(false)}>返回</button>
                         </div>
                     </div>
                 </div>
