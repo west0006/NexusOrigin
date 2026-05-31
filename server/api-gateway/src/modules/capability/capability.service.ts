@@ -1,124 +1,195 @@
-import {Injectable, NotFoundException} from '@nestjs/common';
+// server/api-gateway/src/modules/capability/capability.service.ts
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import axios from 'axios';
-
-interface CreateCapabilityDto {
-    name: string;
-    description: string;
-    version: string;
-    price: number;
-    priceType: 'FREE' | 'ONE_TIME' | 'SUBSCRIPTION';
-    protocol: 'mcp-tool' | 'a2a-service' | 'openclaw-native';
-    framework: string;
-    manifest: any;
-    packageUrl?: string;
-    sourceCode?: string;
-}
+import { CreateCapabilityDto } from './dto/CreateCapability.dto';
+import { BudgetService } from '../billing/budget.service';
 
 @Injectable()
 export class CapabilityService {
-    constructor(private prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly budgetService: BudgetService,
+    ) {}
 
-    async list(page = 1, pageSize = 20, search?: string, protocol?: string) {
+    async list(page: number, pageSize: number, sort?: string, search?: string) {
+        const orderBy: any = sort === 'downloads'
+            ? { downloads: 'desc' }
+            : { createdAt: 'desc' };
+
         const where: any = { status: 'APPROVED' };
         if (search) {
             where.OR = [
-                { name: { contains: search } },
-                { description: { contains: search } },
+                { name: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } },
             ];
         }
-        if (protocol) where.protocol = protocol;
 
         const [items, total] = await Promise.all([
             this.prisma.capability.findMany({
+                where,
                 skip: (page - 1) * pageSize,
                 take: pageSize,
-                where,
-                orderBy: { downloads: 'desc' },
-                include: { author: { select: { id: true, username: true } } },
+                orderBy,
+                include: {
+                    owner: { select: { id: true, username: true, avatar: true } },
+                },
             }),
             this.prisma.capability.count({ where }),
         ]);
-        return { items, total };
+
+        return { items, total, page, pageSize };
     }
 
-    async create(dto: CreateCapabilityDto, authorId: string) {
+    async getById(id: string) {
+        const cap = await this.prisma.capability.findUnique({
+            where: { id },
+            include: {
+                owner: { select: { id: true, username: true, avatar: true } },
+            },
+        });
+        if (!cap) throw new NotFoundException('能力不存在');
+        return cap;
+    }
+
+    async create(dto: CreateCapabilityDto, userId: string) {
         return this.prisma.capability.create({
             data: {
-                ...dto,
-                authorId,
+                name: dto.name,
+                description: dto.description,
+                version: dto.version || '1.0.0',
+                price: dto.price ?? 0,
+                priceType: dto.priceType ?? 'FREE',
+                protocol: dto.protocol ?? 'mcp-tool',
+                framework: dto.framework ?? '',
+                packageUrl: dto.packageUrl,
+                manifest: (dto.manifest as any) ?? {},
+                source: dto.sourceCode ?? 'built-in',
+                ownerId: userId,
                 status: 'PENDING',
-                manifest: dto.manifest,
+            },
+            include: {
+                owner: { select: { id: true, username: true, avatar: true } },
             },
         });
     }
 
-    async install(capabilityId: string, userId: string) {
-        const cap = await this.prisma.capability.findUnique({ where: { id: capabilityId } });
-        if (!cap || cap.status !== 'APPROVED') throw new Error('Capability not available');
+    async purchase(id: string, userId: string) {
+        const capability = await this.prisma.capability.findUnique({ where: { id } });
+        if (!capability) throw new NotFoundException('能力不存在');
 
-        await this.prisma.capability.update({
-            where: { id: capabilityId },
-            data: { downloads: { increment: 1 } },
+        const existing = await this.prisma.purchase.findFirst({
+            where: { userId, capabilityId: id },
         });
+        if (existing) throw new BadRequestException('已购买过该能力');
 
-        if (cap.price > 0) {
-            await this.prisma.purchase.create({
-                data: { userId, skillId: capabilityId, amount: cap.price },
+        if (capability.price > 0 && capability.priceType !== 'FREE') {
+            // 预算检查
+            await this.budgetService.assertBudget(userId, undefined, capability.price);
+
+            const user = await this.prisma.user.findUnique({ where: { id: userId } });
+            if (!user || user.credits < capability.price) {
+                throw new BadRequestException('信用点余额不足');
+            }
+
+            await this.prisma.user.update({
+                where: { id: userId },
+                data: { credits: { decrement: capability.price } },
             });
         }
-        return cap;
-    }
 
-    // 审核相关
-    async review(capabilityId: string, approved: boolean, reason?: string) {
-        return this.prisma.capability.update({
-            where: { id: capabilityId },
-            data: { status: approved ? 'APPROVED' : 'REJECTED' },
+        return this.prisma.purchase.create({
+            data: { userId, capabilityId: id, amount: capability.price },
         });
     }
 
-    async getEnvAssessment(id: string) {
-        const cap = await this.prisma.capability.findUnique({ where: { id } });
-        if (!cap) throw new NotFoundException('Capability not found');
-
-        // 1. 获取本地真实环境
-        let localEnv: any = {};
-        try {
-            const { data } = await axios.get('http://localhost:8082/api/v1/deploy/env');
-            localEnv = data;
-        } catch (e) {
-            return {
-                id: cap.id,
-                name: cap.name,
-                compatible: false,
-                error: '无法获取本地环境信息，请确认枢元部署服务已启动',
-            };
-        }
-
-        // 2. 解析 manifest 中的依赖
-        const manifest = cap.manifest as Record<string, any> | null;
-        const requiredPython = manifest?.requires_python || '>=3.8';
-        const deps: string[] = manifest?.dependencies || [];
-
-        // 3. 简单兼容性判断（真实项目可解析 pip list 或 npm list）
-        const pythonOk = localEnv.pythonVersion && localEnv.pythonVersion >= requiredPython.replace('>=', '');
-        const nodeOk = localEnv.nodeVersion;
-        const missingDeps = deps.filter((dep: string) => {
-            // 目前仅演示，实际需查询本地包列表
-            return true; // 标记所有声明的依赖为待检查
-        });
+    async getInstallGuide(id: string) {
+        const capability = await this.prisma.capability.findUnique({ where: { id } });
+        if (!capability) throw new NotFoundException('能力不存在');
 
         return {
-            id: cap.id,
-            name: cap.name,
-            compatible: pythonOk && nodeOk,
-            pythonVersion: localEnv.pythonVersion || '未检测到',
-            nodeVersion: localEnv.nodeVersion || '未检测到',
-            requiredPython,
-            missingDeps: deps.length > 0 ? deps : ['无额外依赖'],
-            permissions: manifest?.permissions || ['network'],
-            warnings: pythonOk ? [] : ['本地Python版本不满足要求'],
+            name: capability.name,
+            version: capability.version,
+            framework: capability.framework,
+            installSteps: [
+                `1. 确保已安装 ${capability.framework || '所需'} 运行时`,
+                `2. 下载能力包: ${capability.packageUrl || '无需下载'}`,
+                `3. 解压并运行安装脚本`,
+                `4. 重启服务以加载新能力`,
+            ],
+            manifest: capability.manifest,
         };
+    }
+
+    async getDeveloperEarnings(userId: string, startDate?: string, endDate?: string, groupBy?: 'capability' | 'month') {
+        const where: any = {
+            capability: { ownerId: userId },
+        };
+        if (startDate) {
+            where.createdAt = { gte: new Date(startDate) };
+        }
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            where.createdAt = { ...where.createdAt, lte: end };
+        }
+
+        if (groupBy === 'capability') {
+            const result = await this.prisma.purchase.groupBy({
+                by: ['capabilityId'],
+                where,
+                _sum: { amount: true },
+                _count: { id: true },
+            });
+            const capabilityIds = result.map(r => r.capabilityId);
+            const capabilities = await this.prisma.capability.findMany({
+                where: { id: { in: capabilityIds } },
+                select: { id: true, name: true, price: true, priceType: true, createdAt: true },
+            });
+            const map = new Map(capabilities.map(c => [c.id, c]));
+            const items = result.map(r => ({
+                capabilityId: r.capabilityId,
+                capabilityName: map.get(r.capabilityId)?.name || 'Unknown',
+                totalSales: r._sum.amount ?? 0,
+                platformFee: (r._sum.amount ?? 0) * 0.2,   // 假设抽成20%
+                netEarnings: (r._sum.amount ?? 0) * 0.8,
+                purchaseCount: r._count.id,
+            }));
+            return { items, total: items.reduce((s, i) => s + i.totalSales, 0) };
+        } else if (groupBy === 'month') {
+            const purchases = await this.prisma.purchase.findMany({
+                where,
+                select: { amount: true, createdAt: true },
+            });
+            const monthly = new Map<string, { total: number; count: number }>();
+            for (const p of purchases) {
+                const monthKey = p.createdAt.toISOString().slice(0, 7);
+                const existing = monthly.get(monthKey) || { total: 0, count: 0 };
+                existing.total += p.amount;
+                existing.count += 1;
+                monthly.set(monthKey, existing);
+            }
+            const items = Array.from(monthly.entries()).map(([month, data]) => ({
+                month,
+                totalSales: data.total,
+                platformFee: data.total * 0.2,
+                netEarnings: data.total * 0.8,
+                purchaseCount: data.count,
+            })).sort((a, b) => a.month.localeCompare(b.month));
+            return { items, total: items.reduce((s, i) => s + i.totalSales, 0) };
+        } else {
+            // 汇总
+            const result = await this.prisma.purchase.aggregate({
+                where,
+                _sum: { amount: true },
+                _count: { id: true },
+            });
+            const totalSales = result._sum.amount ?? 0;
+            return {
+                totalSales,
+                platformFee: totalSales * 0.2,
+                netEarnings: totalSales * 0.8,
+                purchaseCount: result._count.id,
+            };
+        }
     }
 }

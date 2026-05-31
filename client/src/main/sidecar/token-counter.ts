@@ -1,16 +1,12 @@
-// ─── client/src/main/sidecar/token-counter.ts ─────────────
 import { encode } from 'gpt-tokenizer';
 
 export class TokenCounter {
-    /**
-     * 计算消息列表的 token 数量
-     */
-    countTokens(messages: any): number {
-        if (typeof messages === 'string') {
-            return encode(messages).length;
+    countTokens(input: string | any[]): number {
+        if (typeof input === 'string') {
+            return encode(input).length;
         }
-        if (Array.isArray(messages)) {
-            return messages.reduce((sum, m) => sum + encode(m.content || '').length, 0);
+        if (Array.isArray(input)) {
+            return input.reduce((sum, msg) => sum + encode(msg.content || '').length, 0);
         }
         return 0;
     }

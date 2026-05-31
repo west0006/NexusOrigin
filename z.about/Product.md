@@ -1,8 +1,4 @@
-我将根据您提供的三份文档，整合出重构后全新的“枢元NexusOrigin”项目技术文档。内容将严格基于原文，剔除技术演进过程描述，只呈现重构完成后的最终状态。文档较长，我将分批输出，首批为目录、核心理念与技术架构。
-
----
-
-# 枢元NexusOrigin 项目技术文档
+# 枢元NexusOrigin 项目技术文档 1.0
 
 ## 目录
 
@@ -336,7 +332,7 @@ client/
 │   │   │   ├── token.store.ts
 │   │   │   └── capability.store.ts
 │   │   ├── api/                       # 后端API调用封装
-│   │   │   ├── client.ts
+│   │   │   ├── client.api.ts
 │   │   │   ├── auth.api.ts
 │   │   │   └── capability.api.ts
 │   │   ├── types/
@@ -1511,7 +1507,7 @@ nexus-origin/
 │   │   │   │   ├── token.store.ts
 │   │   │   │   └── capability.store.ts
 │   │   │   ├── api/
-│   │   │   │   ├── client.ts
+│   │   │   │   ├── client.api.ts
 │   │   │   │   ├── auth.api.ts
 │   │   │   │   └── capability.api.ts
 │   │   │   ├── types/

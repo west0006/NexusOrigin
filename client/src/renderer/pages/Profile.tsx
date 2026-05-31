@@ -1,10 +1,17 @@
 // client/src/renderer/pages/Profile.tsx
 // 个人中心 - 信息管理、信用点充值、密码修改
+// 极简扁平风格
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { userAPI, UserProfile } from '../api/user';
+import { userAPI } from '../api/user.api';
+import { UserProfile } from '@shared/types';
 import { useUserStore } from '../store/user.store';
 import { showToast } from '../components/Toast';
+import { useUserLevelStore } from '../store/userLevel.store';
+import { UserLevelBadge } from '../components/UserLevelBadge';
+import { BadgeList } from '../components/BadgeList';
+import { C } from '@renderer/styles/theme';
+import { Icon } from '../components/icons';
 
 export const Profile: React.FC = () => {
     const user = useUserStore(s => s.user);
@@ -32,7 +39,7 @@ export const Profile: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        fetchProfile();
+        void fetchProfile();
     }, [fetchProfile]);
 
     const handleSave = async () => {
@@ -46,9 +53,8 @@ export const Profile: React.FC = () => {
             setEditing(false);
             setMessage('个人资料已更新');
             showToast('更新成功', 'success');
-            // 同步更新全局 user store 中的用户名
             useUserStore.setState(state => ({
-                user: state.user ? { ...state.user, username: updated.username } : null
+                user: state.user ? { ...state.user, username: updated.username } : null,
             }));
         } catch (e: any) {
             showToast(e.message || '更新失败', 'error');
@@ -90,111 +96,264 @@ export const Profile: React.FC = () => {
         }
     };
 
-    if (loading) return <div style={{ padding: 24, textAlign: 'center' }}>加载中...</div>;
-    if (!profile) return <div style={{ padding: 24, textAlign: 'center' }}>无法加载用户信息</div>;
+    // === 用户成长信息 ===
+    const UserGrowthSection = () => {
+        const level = useUserLevelStore((s) => s.level);
+        const exp = useUserLevelStore((s) => s.exp);
+        const expToNext = useUserLevelStore((s) => s.expToNext);
+        const title = useUserLevelStore((s) => s.title);
+        const totalExpEarned = useUserLevelStore((s) => s.totalExpEarned);
+        const badges = useUserLevelStore((s) => s.badges);
+        const getActiveQuests = useUserLevelStore((s) => s.getActiveQuests);
+        const getCompletedQuests = useUserLevelStore((s) => s.getCompletedQuests);
+
+        const activeQuests = getActiveQuests();
+        const completedQuests = getCompletedQuests();
+        const progressPercent = expToNext > 0 ? Math.round((exp / expToNext) * 100) : 100;
+
+        return (
+            <div style={{
+                background: C.cardBg, borderRadius: C.radiusMd,
+                border: `1px solid ${C.border}`, padding: 20, marginBottom: 16,
+            }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Icon name="star" size={16} /> 用户成长
+                </div>
+                {/* 等级信息 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                    <UserLevelBadge  size="lg" />
+                    <div>
+                        <div style={{ fontSize: 16, fontWeight: 600, color: C.text }}>
+                            Lv.{level} {title}
+                        </div>
+                        <div style={{ fontSize: 12, color: C.textLight }}>累计经验 {totalExpEarned}</div>
+                    </div>
+                </div>
+                {/* 经验条 */}
+                <div style={{ marginBottom: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.textLight, marginBottom: 4 }}>
+                        <span>EXP {exp} / {expToNext}</span>
+                        <span>{progressPercent}%</span>
+                    </div>
+                    <div style={{ width: '100%', height: 6, borderRadius: 3, background: C.bg, overflow: 'hidden' }}>
+                        <div style={{ width: `${progressPercent}%`, height: '100%', borderRadius: 3, background: C.primary, transition: 'width 0.3s' }} />
+                    </div>
+                </div>
+                {/* 徽章 */}
+                {badges && badges.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, color: C.textLight, marginBottom: 6 }}>已获得徽章</div>
+                        <BadgeList/>
+                    </div>
+                )}
+                {/* 任务 */}
+                {activeQuests && activeQuests.length > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 12, color: C.textLight, marginBottom: 6 }}>进行中的任务</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {activeQuests.map((q: any) => (
+                                <span key={q.id} style={{
+                                    padding: '3px 8px', borderRadius: 12,
+                                    background: C.warning + '15', color: C.warning, fontSize: 11,
+                                }}>
+                                    {q.title || q.name} ({q.progress}/{q.total})
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {completedQuests && completedQuests.length > 0 && (
+                    <div>
+                        <div style={{ fontSize: 12, color: C.textLight, marginBottom: 6 }}>已完成任务</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {completedQuests.slice(0, 5).map((q: any) => (
+                                <span key={q.id} style={{
+                                    padding: '3px 8px', borderRadius: 12,
+                                    background: C.success + '15', color: C.success, fontSize: 11,
+                                }}>
+                                    ✅ {q.title || q.name}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // === 通用样式 ===
+    const inputBase: React.CSSProperties = {
+        width: '100%', padding: '8px 12px', borderRadius: C.radiusSm,
+        border: `1px solid ${C.border}`, background: C.bg,
+        color: C.text, fontSize: 13, outline: 'none', boxSizing: 'border-box',
+    };
+    const cardStyle: React.CSSProperties = {
+        background: C.cardBg, borderRadius: C.radiusMd,
+        border: `1px solid ${C.border}`, padding: 20, marginBottom: 16,
+    };
+    const sectionTitle: React.CSSProperties = {
+        fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 14,
+        display: 'flex', alignItems: 'center', gap: 8,
+    };
+
+    if (loading) return <div style={{ padding: 24, textAlign: 'center', color: C.textLight }}>加载中...</div>;
+    if (!profile) return <div style={{ padding: 24, textAlign: 'center', color: C.textLight }}>无法加载用户信息</div>;
 
     return (
-        <div style={{ maxWidth: 640, margin: '0 auto' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: 24 }}>个人中心</h2>
+        <div style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
+            {/* 标题 */}
+            <div style={{ marginBottom: 20 }}>
+                <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, color: C.text, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Icon name="settings" size={22} /> 个人中心
+                </h1>
+                <p style={{ margin: '4px 0 0', color: C.textSecondary, fontSize: 13 }}>
+                    管理个人信息、信用点和账户设置
+                </p>
+            </div>
 
-            {/* 基本信息卡片 */}
-            <div className="card" style={{ padding: 24, marginBottom: 24 }}>
+            {/* 1. 个人信息 */}
+            <div style={cardStyle}>
+                <div style={sectionTitle}>
+                    <Icon name="user" size={16} /> 个人信息
+                </div>
                 {!editing ? (
                     <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                            <div>
-                                <div style={{ fontSize: 18, fontWeight: 600 }}>{profile.username}</div>
-                                <div style={{ color: 'var(--color-ink-muted)', fontSize: 14 }}>{profile.email}</div>
-                            </div>
-                            <button className="button" onClick={() => setEditing(true)}>编辑</button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                            <UserLevelBadge size="sm" />
+                            <span style={{ fontSize: 16, fontWeight: 600, color: C.text }}>{profile.username}</span>
+                            <span style={{ fontSize: 12, color: C.textLight }}>{profile.email}</span>
+                            <button onClick={() => setEditing(true)} style={{
+                                marginLeft: 'auto', padding: '4px 10px', borderRadius: C.radiusSm,
+                                border: `1px solid ${C.border}`, background: 'transparent',
+                                color: C.textSecondary, cursor: 'pointer', fontSize: 12,
+                            }}>
+                                编辑
+                            </button>
                         </div>
-                        <p style={{ color: 'var(--color-ink-muted)', fontSize: 14, whiteSpace: 'pre-wrap' }}>
+                        <p style={{ color: C.textSecondary, fontSize: 13, whiteSpace: 'pre-wrap', margin: 0 }}>
                             {profile.bio || '暂无个人简介'}
                         </p>
                     </div>
                 ) : (
                     <div>
                         <input
-                            className="input"
-                            style={{ width: '100%', marginBottom: 12 }}
+                            style={{ ...inputBase, marginBottom: 10 }}
                             placeholder="用户名"
                             value={form.username}
                             onChange={e => setForm({ ...form, username: e.target.value })}
                         />
                         <textarea
-                            className="input"
-                            style={{ width: '100%', minHeight: 80, marginBottom: 12 }}
+                            style={{ ...inputBase, minHeight: 80, marginBottom: 12, resize: 'vertical' }}
                             placeholder="个人简介"
                             value={form.bio}
                             onChange={e => setForm({ ...form, bio: e.target.value })}
                         />
                         <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="button button-primary" onClick={handleSave}>保存</button>
-                            <button className="button" onClick={() => setEditing(false)}>取消</button>
+                            <button onClick={handleSave} style={{
+                                padding: '6px 16px', borderRadius: C.radiusSm, border: 'none',
+                                background: C.primary, color: C.textInverse, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                            }}>
+                                保存
+                            </button>
+                            <button onClick={() => setEditing(false)} style={{
+                                padding: '6px 16px', borderRadius: C.radiusSm,
+                                border: `1px solid ${C.border}`, background: 'transparent',
+                                color: C.textSecondary, cursor: 'pointer', fontSize: 13,
+                            }}>
+                                取消
+                            </button>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* 信用点余额与充值 */}
-            <div className="card" style={{ padding: 24, marginBottom: 24 }}>
-                <h3 style={{ fontWeight: 600, marginBottom: 16 }}>信用点余额</h3>
-                <div style={{ fontSize: 32, fontWeight: 600, color: 'var(--color-primary)', marginBottom: 16 }}>
-                    {credits.toFixed(0)} <span style={{ fontSize: 16 }}>点</span>
+            {/* 2. 信用点余额与充值 */}
+            <div style={cardStyle}>
+                <div style={sectionTitle}>
+                    <Icon name="billing" size={16} /> 信用点余额
                 </div>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 32, fontWeight: 700, color: C.primary, marginBottom: 16 }}>
+                    {credits.toFixed(0)} <span style={{ fontSize: 16, color: C.textSecondary }}>点</span>
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <input
-                        className="input"
                         type="number"
                         min="1"
                         step="1"
                         value={rechargeAmount}
                         onChange={e => setRechargeAmount(Number(e.target.value))}
-                        style={{ width: 100 }}
+                        style={{ ...inputBase, width: 100 }}
                     />
-                    <span style={{ color: 'var(--color-ink-muted)' }}>美元</span>
-                    <button className="button button-primary" onClick={handleRecharge}>
-                        充值 (得 {rechargeAmount * 10} 点)
+                    <span style={{ color: C.textSecondary, fontSize: 13 }}>美元</span>
+                    <button onClick={handleRecharge} style={{
+                        padding: '6px 16px', borderRadius: C.radiusSm, border: 'none',
+                        background: C.primary, color: C.textInverse, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                    }}>
+                        充值（获 {rechargeAmount * 10} 点）
                     </button>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--color-ink-subtle)', marginTop: 8 }}>
-                    模拟充值，1美元 = 10信用点
+                <div style={{ fontSize: 12, color: C.textLight, marginTop: 8 }}>
+                    模拟充值，1 美元 = 10 信用点
                 </div>
             </div>
 
-            {/* 修改密码 */}
-            <div className="card" style={{ padding: 24 }}>
-                <h3 style={{ fontWeight: 600, marginBottom: 16 }}>修改密码</h3>
+            {/* 3. 用户成长 */}
+            <UserGrowthSection />
+
+            {/* 4. 修改密码 */}
+            <div style={cardStyle}>
+                <div style={sectionTitle}>
+                    <Icon name="lock" size={16} /> 修改密码
+                </div>
                 {!changingPwd ? (
-                    <button className="button" onClick={() => setChangingPwd(true)}>修改密码</button>
+                    <button onClick={() => setChangingPwd(true)} style={{
+                        padding: '6px 16px', borderRadius: C.radiusSm,
+                        border: `1px solid ${C.border}`, background: 'transparent',
+                        color: C.textSecondary, cursor: 'pointer', fontSize: 13,
+                    }}>
+                        修改密码
+                    </button>
                 ) : (
                     <div>
                         <input
-                            className="input"
                             type="password"
-                            style={{ width: '100%', marginBottom: 12 }}
+                            style={{ ...inputBase, marginBottom: 10 }}
                             placeholder="原密码"
                             value={pwdForm.oldPassword}
                             onChange={e => setPwdForm({ ...pwdForm, oldPassword: e.target.value })}
                         />
                         <input
-                            className="input"
                             type="password"
-                            style={{ width: '100%', marginBottom: 12 }}
+                            style={{ ...inputBase, marginBottom: 12 }}
                             placeholder="新密码（至少6位）"
                             value={pwdForm.newPassword}
                             onChange={e => setPwdForm({ ...pwdForm, newPassword: e.target.value })}
                         />
                         <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="button button-primary" onClick={handleChangePassword}>确认修改</button>
-                            <button className="button" onClick={() => setChangingPwd(false)}>取消</button>
+                            <button onClick={handleChangePassword} style={{
+                                padding: '6px 16px', borderRadius: C.radiusSm, border: 'none',
+                                background: C.primary, color: C.textInverse, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                            }}>
+                                确认修改
+                            </button>
+                            <button onClick={() => setChangingPwd(false)} style={{
+                                padding: '6px 16px', borderRadius: C.radiusSm,
+                                border: `1px solid ${C.border}`, background: 'transparent',
+                                color: C.textSecondary, cursor: 'pointer', fontSize: 13,
+                            }}>
+                                取消
+                            </button>
                         </div>
                     </div>
                 )}
             </div>
 
+            {/* 消息提示 */}
             {message && (
-                <div style={{ marginTop: 16, padding: 12, background: 'var(--color-success-bg)', borderRadius: 'var(--radius-md)', fontSize: 14 }}>
+                <div style={{
+                    padding: 10, borderRadius: C.radiusSm,
+                    background: C.success + '15', color: C.success, fontSize: 13,
+                }}>
                     {message}
                 </div>
             )}

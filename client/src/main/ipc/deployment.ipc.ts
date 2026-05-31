@@ -1,43 +1,55 @@
-// ─── client/src/main/ipc/deployment.ipc.ts ────────────────
 import { IpcMain } from 'electron';
-import { IPC_CHANNELS } from '../../shared/config';
-import type { DeploymentConfig, EnvironmentCheckResult } from '../../shared/types';
+import { IPC_CHANNELS } from '@shared/config';
+import { getDriver } from '../services/agent-driver';
+import { checkEnvironment } from '../utils/env-checker';
+import type { DeploymentConfig } from '@shared/types/environment';
+
+// 存储当前安装任务的取消函数（简单实现）
+let currentCancel: (() => void) | null = null;
 
 export function setupDeploymentHandlers(ipcMain: IpcMain): void {
-    ipcMain.handle(IPC_CHANNELS.DEPLOYMENT_CHECK_ENV, async (): Promise<EnvironmentCheckResult> => {
-        // 基础实现：仅作类型示范，实际应集成 env-checker 工具
-        const result: EnvironmentCheckResult = {
-            node: false,
-            npm: false,
-            python: false,
-            git: false,
-            diskSpace: 0,
-        };
-
-        try {
-            // 同步执行外部命令的示例（实际应使用 child_process.execAsync）
-            result.node = !!process.version;
-            result.diskSpace = 10; // 占位值，实际需通过 df / wmic 获取
-        } catch {
-            /* 保持默认值 */
-        }
-
-        return result;
+    // 环境检测
+    ipcMain.handle(IPC_CHANNELS.DEPLOYMENT_CHECK_ENV, async () => {
+        return checkEnvironment();
     });
 
+    // 安装
     ipcMain.handle(
         IPC_CHANNELS.DEPLOYMENT_INSTALL,
-        async (_event, config: DeploymentConfig): Promise<{ success: boolean; path: string }> => {
-            // 校验必要参数
-            if (!config.apiKey) {
-                throw new Error('API key is required');
+        async (event, config: DeploymentConfig) => {
+            const { framework, ...installOptions } = config;
+            const driver = getDriver(framework as any);
+
+            // 模拟进度（实际应通过 Go 服务的 WebSocket 或轮询日志）
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress = Math.min(progress + 10, 90);
+                event.sender.send(IPC_CHANNELS.DEPLOYMENT_PROGRESS, progress);
+            }, 1000);
+
+            currentCancel = () => {
+                clearInterval(interval);
+                event.sender.send(IPC_CHANNELS.DEPLOYMENT_PROGRESS, 0);
+            };
+
+            try {
+                const result = await driver.install(installOptions);
+                clearInterval(interval);
+                event.sender.send(IPC_CHANNELS.DEPLOYMENT_PROGRESS, 100);
+                return { success: true, path: result.path };
+            } catch (error: any) {
+                clearInterval(interval);
+                throw new Error(error.message);
+            } finally {
+                currentCancel = null;
             }
-            // 实际部署逻辑应在 deployment.service 中实现
-            return { success: true, path: config.installPath || '~/.openclaw' };
-        },
+        }
     );
 
+    // 取消安装
     ipcMain.on(IPC_CHANNELS.DEPLOYMENT_CANCEL, () => {
-        // 取消部署逻辑
+        if (currentCancel) {
+            currentCancel();
+        }
     });
 }

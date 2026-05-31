@@ -1,38 +1,47 @@
-// ─── client/src/renderer/store/token.ts ───────────────────
+// client/src/renderer/store/token.store.ts
 import { create } from 'zustand';
-import type { TokenData, BudgetConfig } from '../../shared/types';
+import { tokenAPI } from '../api/token.api';
+import { billingAPI } from '../api/billing.api';
+import type { TokenUsageResponse, BudgetInfo } from '@shared/types';
 
 interface TokenState {
-    usages: TokenData[];
-    budget: BudgetConfig | null;
-    fetchUsage: (period: 'day' | 'week' | 'month') => Promise<void>;
-    subscribe: () => () => void;
-    setBudget: (config: BudgetConfig) => Promise<void>;
+    usage: TokenUsageResponse | null;
+    budget: BudgetInfo | null;
+    loading: boolean;
+    fetchUsage: (days?: number) => Promise<void>;
+    fetchBudget: () => Promise<void>;
+    setBudget: (monthlyBudget: number, alertThreshold?: number) => Promise<void>;
 }
 
 export const useTokenStore = create<TokenState>((set) => ({
-    usages: [],
+    usage: null,
     budget: null,
+    loading: false,
 
-    fetchUsage: async (period) => {
-        if (window.electronAPI) {
-            const data = await window.electronAPI.token.getUsage(period);
-            set({ usages: Array.isArray(data) ? data : [] });
+    fetchUsage: async (days = 7) => {
+        set({ loading: true });
+        try {
+            const data = await tokenAPI.getUsage(days);
+            set({ usage: data });
+        } catch (e) {
+            console.error('获取用量失败', e);
+        } finally {
+            set({ loading: false });
         }
     },
 
-    subscribe: () => {
-        if (!window.electronAPI) return () => {};
-        const unsubscribe = window.electronAPI.token.onUpdate((data: TokenData) => {
-            set((state) => ({ usages: [...state.usages.slice(-99), data] }));
-        });
-        return unsubscribe;
+    fetchBudget: async () => {
+        try {
+            const balance = await billingAPI.getBalance();
+            // 暂时模拟预算结构，后端可后续提供专门预算接口
+            set({ budget: { budget: 100, used: balance.totalSpent, remaining: balance.credits, usageRate: (balance.totalSpent / 100) * 100 } });
+        } catch (e) {
+            console.error('获取预算失败', e);
+        }
     },
 
-    setBudget: async (config) => {
-        if (window.electronAPI) {
-            await window.electronAPI.token.setBudget(config);
-            set({ budget: config });
-        }
+    setBudget: async (monthlyBudget, alertThreshold = 80) => {
+        await billingAPI.setBudget(monthlyBudget, alertThreshold);
+        await set({ budget: { budget: monthlyBudget, used: 0, remaining: monthlyBudget, usageRate: 0 } });
     },
 }));

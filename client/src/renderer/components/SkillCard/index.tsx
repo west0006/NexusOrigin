@@ -1,9 +1,9 @@
 // ─── client/src/renderer/components/SkillCard/index.tsx ───
 import React from 'react';
-import type { SkillItem } from '../../../shared/types';
+import type { Skill } from '@shared/types';
 
 interface Props {
-    skill: SkillItem;
+    skill: Skill;
     onInstall?: (id: string) => void;
 }
 

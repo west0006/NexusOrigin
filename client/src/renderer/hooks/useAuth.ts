@@ -1,37 +1,53 @@
-// ─── client/src/renderer/hooks/useAuth.ts ──────────────────
+// client/src/renderer/hooks/useAuth.ts
 import { useState } from 'react';
-import { authAPI, AuthResponse } from '../api/auth.api';
+import { authAPI } from '../api/auth.api';
+import { useUserStore } from '../store/user.store';
+import type { User } from '@shared/types';
 
 export function useAuth() {
-    const [user, setUser] = useState<AuthResponse['user'] | null>(null);
+    const { setAuth, logout: storeLogout } = useUserStore();
     const [loading, setLoading] = useState(false);
 
-    const login = async (email: string, password: string) => {
+    const phoneLogin = async (phone: string, code: string) => {
         setLoading(true);
         try {
-            const data = await authAPI.login({ email, password });
-            localStorage.setItem('accessToken', data.accessToken);
-            setUser(data.user);
+            const res = await authAPI.phoneLogin({ phone, code });
+            if (res.isNewUser) {
+                return { isNewUser: true, registerToken: res.registerToken };
+            } else {
+                if (res.user && res.accessToken && res.refreshToken) {
+                    setAuth(res.user, res.accessToken, res.refreshToken);
+                }
+                return { isNewUser: false };
+            }
         } finally {
             setLoading(false);
         }
     };
 
-    const register = async (email: string, username: string, password: string) => {
+    const registerFinish = async (token: string, username: string, avatar?: string) => {
         setLoading(true);
         try {
-            const data = await authAPI.register({ email, username, password });
-            localStorage.setItem('accessToken', data.accessToken);
-            setUser(data.user);
+            const res = await authAPI.registerFinish({ token, username, avatar });
+            setAuth(res.user, res.accessToken, res.refreshToken);
+            return res;
         } finally {
             setLoading(false);
         }
     };
 
-    const logout = () => {
-        localStorage.removeItem('accessToken');
-        setUser(null);
+    const selectIdentity = async (identityType: 'USER' | 'DEVELOPER') => {
+        setLoading(true);
+        try {
+            await authAPI.selectIdentity({ identityType });
+        } finally {
+            setLoading(false);
+        }
     };
 
-    return { user, loading, login, register, logout };
+    const logout = async () => {
+        await storeLogout();
+    };
+
+    return { loading, phoneLogin, registerFinish, selectIdentity, logout };
 }

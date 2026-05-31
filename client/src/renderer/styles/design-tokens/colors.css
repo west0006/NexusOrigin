@@ -1,0 +1,121 @@
+/* ═══════════════════════════════════════════════
+   枢纽 NexusOrigin 设计令牌 — 色彩体系
+   基于 Style2_0.md v2.0
+   枢轴紫 #6C5CE7 为主色调
+   ═══════════════════════════════════════════════ */
+
+:root {
+    /* ── 品牌色 ── */
+    --nexus-primary:          #6C5CE7;
+    --nexus-primary-hover:    #5A4BD6;
+    --nexus-primary-active:   #4A3DB5;
+    --nexus-primary-light:    #8B7CF0;
+    --nexus-primary-subtle:   #F0EDFF;
+    --nexus-focus-glow:       rgba(108, 92, 231, 0.4);
+
+    /* ── 中性色（亮色模式） ── */
+    --nexus-bg-page:          #F8F9FA;
+    --nexus-bg-card:          #FFFFFF;
+    --nexus-bg-context:       #F9FAFB;
+    --nexus-bg-code:          #1E1E1E;
+    --nexus-bg-overlay:       rgba(0, 0, 0, 0.5);
+
+    --nexus-border:           #E2E8F0;
+    --nexus-border-light:     #EDF2F7;
+
+    --nexus-text-primary:     #1A202C;
+    --nexus-text-secondary:   #718096;
+    --nexus-text-disabled:    #A0AEC0;
+    --nexus-text-inverse:     #FFFFFF;
+
+    /* ── 语义色 ── */
+    --nexus-success:          #00B894;
+    --nexus-success-bg:       #E6F9F4;
+    --nexus-warning:          #FDCB6E;
+    --nexus-warning-bg:       #FFF9E6;
+    --nexus-error:            #E17055;
+    --nexus-error-bg:         #FEF0ED;
+    --nexus-info:             #74B9FF;
+    --nexus-info-bg:          #E8F4FD;
+
+    /* ── 阴影 ── */
+    --nexus-shadow-card:      0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --nexus-shadow-elevated:  0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+    --nexus-shadow-modal:     0 8px 30px rgba(0,0,0,0.12);
+    --nexus-shadow-focus:     0 0 0 3px var(--nexus-focus-glow);
+
+    /* ── 圆角 ── */
+    --nexus-radius-sm:        6px;
+    --nexus-radius-md:        10px;
+    --nexus-radius-lg:        12px;
+    --nexus-radius-pill:      20px;
+    --nexus-radius-full:      9999px;
+
+    /* ── 间距（8px 网格） ── */
+    --nexus-space-1:          8px;
+    --nexus-space-2:          12px;
+    --nexus-space-3:          16px;
+    --nexus-space-4:          24px;
+    --nexus-space-5:          32px;
+    --nexus-space-6:          48px;
+
+    /* ── 排版 ── */
+    --nexus-font-sans:        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --nexus-font-mono:        "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+
+    --nexus-text-xs:          12px;
+    --nexus-text-sm:          13px;
+    --nexus-text-base:        14px;
+    --nexus-text-md:          16px;
+    --nexus-text-lg:          18px;
+    --nexus-text-xl:          24px;
+
+    --nexus-leading-tight:    1.25;
+    --nexus-leading-normal:   1.4;
+    --nexus-leading-relaxed:  1.5;
+
+    /* ── 过渡 ── */
+    --nexus-ease-out:         cubic-bezier(0, 0, 0.2, 1);
+    --nexus-ease-in:          cubic-bezier(0.4, 0, 1, 1);
+    --nexus-ease-spring:      cubic-bezier(0.16, 1, 0.3, 1);
+    --nexus-duration-fast:    150ms;
+    --nexus-duration-normal:  200ms;
+    --nexus-duration-slow:    300ms;
+}
+
+/* ═══════════════════════════════════════════════
+   深色模式（基于 GitHub Dark #0D1117）
+   ═══════════════════════════════════════════════ */
+
+[data-theme="dark"],
+.dark {
+    --nexus-primary:          #8B7CF0;
+    --nexus-primary-hover:    #9D90F5;
+    --nexus-primary-active:   #7B6BE0;
+    --nexus-primary-light:    #8B7CF0;
+    --nexus-primary-subtle:   #1E1B3A;
+    --nexus-focus-glow:       rgba(139, 124, 240, 0.4);
+
+    --nexus-bg-page:          #0D1117;
+    --nexus-bg-card:          #161B22;
+    --nexus-bg-context:       #1C2128;
+    --nexus-bg-code:          #0D1117;
+    --nexus-bg-overlay:       rgba(0, 0, 0, 0.7);
+
+    --nexus-border:           #30363D;
+    --nexus-border-light:     #21262D;
+
+    --nexus-text-primary:     #E6EDF3;
+    --nexus-text-secondary:   #8B949E;
+    --nexus-text-disabled:    #484F58;
+    --nexus-text-inverse:     #0D1117;
+
+    --nexus-success-bg:       #12261E;
+    --nexus-warning-bg:       #2B2411;
+    --nexus-error-bg:         #2A1515;
+    --nexus-info-bg:          #0E1D2F;
+
+    --nexus-shadow-card:      0 1px 3px rgba(0,0,0,0.3);
+    --nexus-shadow-elevated:  0 4px 12px rgba(0,0,0,0.4);
+    --nexus-shadow-modal:     0 8px 30px rgba(0,0,0,0.6);
+}

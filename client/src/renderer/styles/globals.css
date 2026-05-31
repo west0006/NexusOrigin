@@ -72,6 +72,7 @@
 
     /* ========== 聚焦光晕动画 ========== */
     --animation-focus-pulse: focus-pulse 2s infinite;
+    --color-focus-bg: rgba(108, 92, 231, 0.08);
 }
 
 *,
@@ -204,4 +205,33 @@ img {
     0% { box-shadow: 0 0 0 0 var(--color-focus-glow); }
     50% { box-shadow: 0 0 0 8px rgba(108, 92, 231, 0); }
     100% { box-shadow: 0 0 0 0 rgba(108, 92, 231, 0); }
+}
+
+/* ══════════════════════════════════════
+   深色模式（GitHub Dark #0D1117）
+   ══════════════════════════════════════ */
+[data-theme="dark"] {
+    --color-canvas: #0D1117;
+    --color-canvas-inset: #0D1117;
+    --color-surface-1: #161B22;
+    --color-surface-2: #21262D;
+    --color-border: #30363D;
+    --color-border-muted: #21262D;
+    --color-ink: #E6EDF3;
+    --color-ink-muted: #8B949E;
+    --color-ink-subtle: #484F58;
+    --color-inverse-ink: #0D1117;
+    --color-primary: #8B7CF0;
+    --color-primary-hover: #9D90F5;
+    --color-primary-pressed: #7B6BE0;
+    --color-primary-light: rgba(139, 124, 240, 0.12);
+    --color-success-bg: #12261E;
+    --color-warning-bg: #2B2411;
+    --color-error-bg: #2A1515;
+    --color-info-bg: #0E1D2F;
+    --color-focus-bg: #1E1B3A;
+    --color-focus-glow: rgba(139, 124, 240, 0.4);
+    --color-child-bg: #1C2128;
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.4);
 }

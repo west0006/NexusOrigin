@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../../store/app';
-import { apiClient } from '../../api/client';
+import { apiClient } from '../../api/client.api';
 
 interface SearchResult {
     type: 'post' | 'agent' | 'capability';

@@ -1,4 +1,3 @@
-// ─── server/api-gateway/prisma/schema.prisma ──────────────
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,263 +7,424 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  username     String   @unique
-  passwordHash String
-  avatar       String?
-  bio          String?
-  credits      Float    @default(0)
-  reputation   Int      @default(0)
-  creatorLevel Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  Capability    Capability[]
-  posts         Post[]
-  comments      Comment[]
-  tokenUsages   TokenUsage[]
-  purchases     Purchase[]
-  agentServices AgentService[]
-  agentTasks    AgentTask[]    @relation("Client")
-  providedTasks AgentTask[]    @relation("Provider")
-  reviews       Review[]
-  agents        Agent[]
-  a2Atasks      A2ATask[]
-  commentLikes  CommentLike[]
-  rechargeLogs  RechargeLog[]
-}
-
-model Agent {
-  id            String      @id @default(cuid())
-  name          String
-  description   String
-  version       String
-  endpoint      String // Agent 的 A2A 端点 URL
-  capabilities  Json? // 能力列表（如：["text-generation", "code-review"]）
-  status        AgentStatus @default(ONLINE)
-  healthCheck   String? // 健康检查端点
-  lastHeartbeat DateTime?
-  ownerId       String
-  owner         User        @relation(fields: [ownerId], references: [id])
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  a2Atasks      A2ATask[]
+// ── 枚举 ──
+enum IdentityType {
+  USER
+  DEVELOPER
 }
 
 enum AgentStatus {
   ONLINE
   OFFLINE
-  DEGRADED
+  BUSY
+  ERROR
 }
 
-model Capability {
-  id          String      @id @default(cuid())
-  name        String
-  description String
-  version     String
-  price       Float       @default(0)
-  priceType   PriceType   @default(FREE)
-  downloads   Int         @default(0)
-  rating      Float       @default(0)
-  status      SkillStatus @default(PENDING)
-  protocol    String      @default("mcp-tool") // mcp-tool | a2a-service | openclaw-native
-  framework   String      @default("any") // openclaw, langgraph, crewai, generic
-
-  authorId String
-  author   User   @relation(fields: [authorId], references: [id])
-
-  manifest   Json
-  packageUrl String?
-  sourceCode String? // 可选源代码URL
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  purchases Purchase[]
-  reviews   Review[]
-  auditLogs AuditLog[]
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
 }
 
-model AuditLog {
-  id           String     @id @default(cuid())
-  capabilityId String
-  capability   Capability @relation(fields: [capabilityId], references: [id])
-  action       String // uploaded, approved, rejected, suspended
-  reason       String?
-  performedBy  String
-  createdAt    DateTime   @default(now())
+enum A2ATaskStatus {
+  PENDING
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
 }
 
-enum PriceType {
-  FREE
-  ONE_TIME
-  SUBSCRIPTION
+enum PostStatus {
+  PUBLISHED
+  DRAFT
+  ARCHIVED
 }
 
-enum SkillStatus {
+enum ReviewStatus {
   PENDING
   APPROVED
   REJECTED
-  SUSPENDED
 }
 
-model A2ATask {
-  id          String     @id @default(cuid())
-  clientId    String // 发布任务的用户 ID
-  agentId     String // 目标 Agent ID
-  description String     @db.Text
-  status      TaskStatus @default(PENDING)
-  bid         Float? // 竞标价格（信用点）
-  result      String?    @db.Text // 任务执行结果
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  completedAt DateTime?
-  client      User       @relation(fields: [clientId], references: [id])
-  agent       Agent      @relation(fields: [agentId], references: [id])
-}
-
-model Purchase {
-  id      String  @id @default(cuid())
-  userId  String
-  skillId String
-  amount  Float
-  txHash  String?
-
-  user       User       @relation(fields: [userId], references: [id])
-  Capability Capability @relation(fields: [skillId], references: [id])
-
-  createdAt DateTime @default(now())
-}
-
-model Review {
-  id        String   @id @default(cuid())
-  userId    String
-  skillId   String
-  rating    Int
-  content   String?
-  createdAt DateTime @default(now())
-
-  user       User       @relation(fields: [userId], references: [id])
-  Capability Capability @relation(fields: [skillId], references: [id])
-}
-
-model Post {
-  id       String       @id @default(cuid())
-  title    String
-  content  String       @db.Text
-  category PostCategory
-  tags     String[]
-  views    Int          @default(0)
-  likes    Int          @default(0)
-
-  authorId String
-  author   User   @relation(fields: [authorId], references: [id])
-
-  comments Comment[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum OnboardingStep {
+  PHONE_VERIFY
+  SET_USERNAME
+  SELECT_IDENTITY
+  COMPLETED
 }
 
 enum PostCategory {
   TUTORIAL
   QUESTION
-  SHOWCASE
   DISCUSSION
-  BUG
+  HELP
+  SHARE
+}
+
+// ── User 模型 ──
+model User {
+  id             String         @id @default(cuid())
+  email          String?        @unique
+  phone          String?        @unique
+  wechatUnionId  String?        @unique @map("wechat_union_id")
+  username       String         @unique
+  passwordHash   String?
+  avatar         String?
+  bio            String?
+  identityType   IdentityType   @default(USER) @map("identity_type")
+  credits        Float          @default(0)
+  reputation     Int            @default(0)
+  creatorLevel   Int            @default(0)
+  onboardingStep OnboardingStep @default(PHONE_VERIFY) @map("onboarding_step")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?      @map("deleted_at")
+
+  Capability        Capability[]
+  posts             Post[]
+  comments          Comment[]
+  tokenUsages       TokenUsage[]
+  purchases         Purchase[]
+  agentServices     AgentService[]
+  agentTasks        AgentTask[]        @relation("Client")
+  providedTasks     AgentTask[]        @relation("Provider")
+  reviews           Review[]
+  agents            Agent[]
+  a2Atasks          A2ATask[]
+  commentLikes      CommentLike[]
+  rechargeLogs      RechargeLog[]
+  userProviders     UserProvider[]
+  postLikes         PostLike[]
+  tokenTransactions TokenTransaction[]
+  budgetConfig      BudgetConfig?
+
+  @@map("users")
+}
+
+// ── Post 模型 ──
+model Post {
+  id        String     @id @default(cuid())
+  title     String
+  body      String     @db.Text
+  status    PostStatus @default(PUBLISHED)
+  likes     Int        @default(0)
+  views     Int        @default(0)
+  authorId  String
+  author    User       @relation(fields: [authorId], references: [id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  deletedAt DateTime?  @map("deleted_at")
+
+  comments    Comment[]
+  postLikes   PostLike[]
+  agentAuthor String?    @map("agent_author") // Agent 社区双轨预留
+
+  category PostCategory @default(DISCUSSION)
+  tags     String[]
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@map("posts")
+}
+
+// ── Comment 模型 ──
+model Comment {
+  id        String    @id @default(cuid())
+  body      String    @db.Text
+  likes     Int       @default(0)
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id])
+  postId    String
+  post      Post      @relation(fields: [postId], references: [id])
+  parentId  String?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? @map("deleted_at")
+
+  commentLikes CommentLike[]
+  agentAuthor  String?       @map("agent_author")
+
+  @@index([postId])
+  @@index([authorId])
+  @@map("comments")
+}
+
+// ── TokenUsage 模型 ──
+model TokenUsage {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  model        String
+  provider     String
+  tokensIn     Int      @map("tokens_in")
+  tokensOut    Int      @map("tokens_out")
+  cost         Float
+  taskId       String?  @map("task_id")
+  agentTaskId  String?  @map("agent_task_id")
+  capabilityId String?  @map("capability_id")
+  createdAt    DateTime @default(now())
+
+  capability Capability? @relation(fields: [capabilityId], references: [id])
+  agentTask  AgentTask?  @relation(fields: [agentTaskId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([taskId])
+  @@index([agentTaskId])
+  @@map("token_usages")
+}
+
+// ── TokenTransaction（原 Purchase 扩展） ──
+model TokenTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String // RECHARGE | CONSUME | REFUND | INCENTIVE
+  amount    Float
+  balance   Float // 交易后余额快照
+  note      String?
+  source    String? // 来源标识：sms_cost/model_call/capability_purchase
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("token_transactions")
+}
+
+model Agent {
+  id          String      @id @default(cuid())
+  name        String
+  description String
+  version     String
+  status      AgentStatus @default(ONLINE)
+  healthCheck String?
+
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  a2Atasks      A2ATask[]      @relation("AgentOwner")
+  agentTasks    AgentTask[]
+  agentServices AgentService[]
+
+  reputation    Int       @default(0)
+  lastHeartbeat DateTime? @map("last_heartbeat")
+  endpoint      String    @default("")
+  capabilities  String[]
+  a2Abids       A2ABid[]
+
+  @@map("agents")
+}
+
+model Capability {
+  id          String       @id @default(cuid())
+  name        String
+  description String
+  version     String
+  ownerId     String
+  owner       User         @relation(fields: [ownerId], references: [id])
+  status      ReviewStatus @default(PENDING)
+  price       Float        @default(0)
+  downloads   Int          @default(0)
+  source      String       @default("native") // native | openclaw | mcp
+  manifest    Json? // MCP manifest
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  priceType  String  @default("FREE") @map("price_type")
+  protocol   String  @default("mcp-tool")
+  framework  String  @default("")
+  packageUrl String? @map("package_url")
+  rating     Float   @default(0)
+
+  reviews   Review[]
+  purchases Purchase[]
+
+  compatibleFrameworks String[] // 如 ["LangGraph", "CrewAI"]
+  tokenUsages          TokenUsage[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@map("capabilities")
+}
+
+model Review {
+  id           String       @id @default(cuid())
+  capabilityId String
+  capability   Capability   @relation(fields: [capabilityId], references: [id])
+  reviewerId   String
+  reviewer     User         @relation(fields: [reviewerId], references: [id])
+  status       ReviewStatus @default(PENDING)
+  comment      String?      @db.Text
+  createdAt    DateTime     @default(now())
+
+  @@map("reviews")
+}
+
+model Purchase {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  capabilityId String
+  capability   Capability @relation(fields: [capabilityId], references: [id])
+  amount       Float
+  createdAt    DateTime   @default(now())
+
+  @@map("purchases")
+}
+
+model AgentTask {
+  id          String       @id @default(cuid())
+  title       String
+  description String       @db.Text
+  status      TaskStatus   @default(PENDING)
+  clientId    String
+  client      User         @relation("Client", fields: [clientId], references: [id])
+  providerId  String?
+  provider    User?        @relation("Provider", fields: [providerId], references: [id])
+  agentId     String?
+  agent       Agent?       @relation(fields: [agentId], references: [id])
+  output      String?      @db.Text
+  cost        Float        @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  tokenUsages TokenUsage[]
+
+  @@index([clientId])
+  @@index([providerId])
+  @@index([status])
+  @@map("agent_tasks")
+}
+
+model AgentService {
+  id          String   @id @default(cuid())
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  serviceType String
+  config      Json?
+  createdAt   DateTime @default(now())
+
+  @@map("agent_services")
+}
+
+model PostLike {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@map("post_likes")
 }
 
 model CommentLike {
   id        String   @id @default(cuid())
   userId    String
+  user      User     @relation(fields: [userId], references: [id])
   commentId String
+  comment   Comment  @relation(fields: [commentId], references: [id])
   createdAt DateTime @default(now())
-
-  user    User    @relation(fields: [userId], references: [id])
-  comment Comment @relation(fields: [commentId], references: [id])
 
   @@unique([userId, commentId])
+  @@map("comment_likes")
 }
 
-model Comment {
-  id      String @id @default(cuid())
-  content String @db.Text
-  likes   Int    @default(0)
+model A2ATask {
+  id               String        @id @default(cuid())
+  title            String
+  description      String        @db.Text
+  status           A2ATaskStatus @default(PENDING)
+  clientId         String
+  client           User          @relation(fields: [clientId], references: [id])
+  agentId          String
+  agent            Agent         @relation("AgentOwner", fields: [agentId], references: [id])
+  cost             Float         @default(0)
+  budget           Float         @default(0) // 任务预算上限
+  deadline         DateTime? // 截止日期
+  result           String?       @db.Text
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  proofOfExecution String?       @map("proof_of_execution") // 存证哈希
+  a2Abids          A2ABid[]
 
-  authorId String
-  author   User   @relation(fields: [authorId], references: [id])
-
-  postId String
-  post   Post   @relation(fields: [postId], references: [id])
-
-  parentId String?
-  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  replies  Comment[] @relation("CommentReplies")
-
-  createdAt    DateTime      @default(now())
-  commentLikes CommentLike[]
-}
-
-model TokenUsage {
-  id           String  @id @default(cuid())
-  userId       String
-  modelName    String
-  inputTokens  Int
-  outputTokens Int
-  costUsd      Float
-  skillId      String?
-  protocol     String  @default("llm-call")
-
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
-}
-
-model AgentTask {
-  id          String     @id @default(cuid())
-  clientId    String
-  providerId  String?
-  description String     @db.Text
-  status      TaskStatus @default(PENDING)
-  bid         Float?
-  proofHash   String?
-
-  client   User  @relation("Client", fields: [clientId], references: [id])
-  provider User? @relation("Provider", fields: [providerId], references: [id])
-
-  createdAt   DateTime  @default(now())
-  completedAt DateTime?
-}
-
-enum TaskStatus {
-  PENDING
-  ACCEPTED
-  EXECUTING
-  COMPLETED
-  DISPUTED
-}
-
-model AgentService {
-  id           String  @id @default(cuid())
-  providerId   String
-  skillId      String
-  pricePerTask Float
-  availability Boolean @default(true)
-
-  provider User @relation(fields: [providerId], references: [id])
-
-  createdAt DateTime @default(now())
+  @@index([clientId])
+  @@index([agentId])
+  @@index([status])
+  @@map("a2a_tasks")
 }
 
 model RechargeLog {
   id        String   @id @default(cuid())
   userId    String
-  amount    Float // 充值金额（美元）
-  credits   Float // 获得的信用点
-  method    String // 充值方式：alipay, wechat, paypal
-  status    String   @default("completed") // completed, failed, pending
-  createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+  amount    Float
+  method    String // wxpay | alipay
+  status    String // pending | success | failed
+  tradeNo   String?  @unique @map("trade_no")
+  createdAt DateTime @default(now())
+
+  @@map("recharge_logs")
+}
+
+model UserProvider {
+  id              String @id @default(cuid())
+  userId          String
+  user            User   @relation(fields: [userId], references: [id])
+  providerName    String @map("provider_name")
+  apiKeyEncrypted String @map("api_key_encrypted") // 存储加密后的字符串（iv:encrypted）
+
+  baseUrl   String?  @map("base_url")
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, providerName])
+  @@map("user_providers")
+}
+
+model BudgetConfig {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+  monthlyBudget   Float    @default(0) @map("monthly_budget") // 月度预算上限（美元）
+  alertThreshold  Float    @default(80) @map("alert_threshold") // 告警阈值百分比（0-100）
+  actionOnExceed  String   @default("block") @map("action_on_exceed") // block | warn | whitelist
+  whitelistModels String[] @map("whitelist_models") // 超预算后仍允许的模型列表
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("budget_configs")
+}
+
+// 竞标记录表
+model A2ABid {
+  id            String   @id @default(cuid())
+  taskId        String
+  task          A2ATask  @relation(fields: [taskId], references: [id])
+  agentId       String
+  agent         Agent    @relation(fields: [agentId], references: [id])
+  bidAmount     Float    @default(0) // 竞标报价
+  estimatedDays Int      @default(1) // 预计完成天数
+  message       String?  @db.Text // 竞标说明
+  status        String   @default("pending") // pending | accepted | rejected
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([taskId])
+  @@index([agentId])
+  @@map("a2a_bids")
+}
+
+model SystemConfig {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
 }

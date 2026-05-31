@@ -1,192 +1,390 @@
 // client/src/renderer/pages/CostCenter.tsx
-import React, { useEffect, useState, useCallback } from 'react';
-import { tokenAPI, BudgetInfo } from '../api/token';
-import { useUserStore } from '../store/user.store';
-import { showToast } from '../components/Toast';
+// 成本中心（增强版：BudgetCircuitBreaker 状态机 + 预算仪表盘 + 熔断动画）
+// 极简扁平风格，统一使用 C token
 
-interface DailyUsage {
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { C } from '../styles/theme';
+import { Icon } from '../components/icons';
+import { useTaskExecutionStore } from '../store/taskExecution.store';
+import { BudgetCircuitBreaker, type BreakerStatus } from '../components/Agent/BudgetCircuitBreaker';
+
+interface DailyTrend {
     date: string;
     cost: number;
+    tokens: number;
 }
 
-export const CostCenter: React.FC = () => {
-    const user = useUserStore(s => s.user);
-    const [period, setPeriod] = useState<'day' | 'week' | 'month'>('week');
-    const [usages, setUsages] = useState<DailyUsage[]>([]);
-    const [budget, setBudget] = useState<BudgetInfo | null>(null);
-    const [newBudget, setNewBudget] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [sidecarStatus, setSidecarStatus] = useState<'online' | 'offline'>('offline');
+const CostCenter: React.FC = () => {
+    const { taskHistory, budget, setBudget, resetBudget } = useTaskExecutionStore();
+    const [showBudgetEdit, setShowBudgetEdit] = useState(false);
+    const [editBudget, setEditBudget] = useState(String(budget));
+    const [breachFlash, setBreachFlash] = useState(false);
 
-    // 获取成本数据
-    const fetchData = useCallback(async () => {
-        if (!user) return;
-        setLoading(true);
-        try {
-            const data = await tokenAPI.getUsageByPeriod(user.id, period);
-            if (Array.isArray(data?.data)) {
-                setUsages(data.data);
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
-    }, [user, period]);
+    // 熔断器实例（使用 ref 保持跨渲染单例）
+    const breakerRef = useRef<BudgetCircuitBreaker | null>(null);
+    if (!breakerRef.current) {
+        breakerRef.current = new BudgetCircuitBreaker({ budgetLimit: budget });
+    }
 
-    // 获取预算
-    const fetchBudget = useCallback(async () => {
-        if (!user) return;
-        try {
-            const b = await tokenAPI.getBudget(user.id);
-            setBudget(b);
-            setNewBudget(b?.budget?.toString() || '');
-        } catch (e) {}
-    }, [user]);
-
-    // 检查 Sidecar 状态
-    const checkSidecar = useCallback(async () => {
-        try {
-            const res = await fetch('http://localhost:8081/health');
-            if (res.ok) setSidecarStatus('online');
-            else setSidecarStatus('offline');
-        } catch {
-            setSidecarStatus('offline');
-        }
-    }, []);
-
+    // 当预算变化时同步熔断器
     useEffect(() => {
-        fetchData();
-        fetchBudget();
-        checkSidecar();
-        const timer = setInterval(checkSidecar, 10000);
-        return () => clearInterval(timer);
-    }, [fetchData, fetchBudget, checkSidecar]);
+        breakerRef.current?.setBudgetLimit(budget);
+    }, [budget]);
 
-    // 更新预算
-    const handleSetBudget = async () => {
-        const amount = parseFloat(newBudget);
-        if (isNaN(amount) || amount <= 0) return showToast('请输入有效的预算金额', 'warning');
-        try {
-            await tokenAPI.setBudget(user!.id, amount);
-            showToast('预算设置成功', 'success');
-            fetchBudget();
-        } catch (e) {
-            showToast('预算设置失败', 'error');
+    // 计算统计数据
+    const stats = useMemo(() => {
+        const entries = taskHistory || [];
+        const totalInput = entries.reduce((s, e) => s + (e.totalTokens?.input || 0), 0);
+        const totalOutput = entries.reduce((s, e) => s + (e.totalTokens?.output || 0), 0);
+        const totalCost = entries.reduce((s, e) => s + (e.totalCost || 0), 0);
+        const taskCount = entries.length;
+        const runningCount = entries.filter(e => e.status === 'running').length;
+        const failedCount = entries.filter(e => e.status === 'failed').length;
+        const breachedCount = entries.filter(e => e.status === 'breached').length;
+
+        const dailyMap = new Map<string, { cost: number; tokens: number }>();
+        entries.forEach(e => {
+            const day = new Date(e.createdAt).toISOString().slice(0, 10);
+            const prev = dailyMap.get(day) || { cost: 0, tokens: 0 };
+            dailyMap.set(day, {
+                cost: prev.cost + (e.totalCost || 0),
+                tokens: prev.tokens + (e.totalTokens?.input || 0) + (e.totalTokens?.output || 0),
+            });
+        });
+        const dailyTrend: DailyTrend[] = Array.from(dailyMap.entries())
+            .map(([date, v]) => ({ date, cost: v.cost, tokens: v.tokens }))
+            .sort((a, b) => a.date.localeCompare(b.date));
+
+        // 通过熔断器获取状态
+        const total = totalCost;
+        const status = breakerRef.current!.recordUsage(0); // no-op check
+        const breakerStatus = status.status;
+
+        return {
+            totalInput, totalOutput, totalCost: total, taskCount,
+            runningCount, failedCount, breachedCount, dailyTrend,
+            breakerStatus,
+        };
+    }, [taskHistory, budget]);
+
+    // 熔断闪烁效果
+    useEffect(() => {
+        if (stats.breakerStatus.state === 'OPEN') {
+            setBreachFlash(true);
+            const t = setTimeout(() => setBreachFlash(false), 2000);
+            return () => clearTimeout(t);
         }
+    }, [stats.breakerStatus.state]);
+
+    const handleSaveBudget = () => {
+        const v = parseFloat(editBudget);
+        if (isNaN(v) || v <= 0) { return; }
+        setBudget(v);
+        setShowBudgetEdit(false);
+        showToast('预算已更新', 'success');
     };
 
-    const totalCost = usages.reduce((sum, d) => sum + d.cost, 0);
-    const budgetUsage = budget?.usageRate ?? 0;
+    const handleResetBudget = () => {
+        resetBudget();
+        breakerRef.current?.reset();
+        setEditBudget(String(DEFAULT_BUDGET));
+        showToast('熔断器已重置', 'success');
+    };
+
+    const formatCost = (c: number) => `¥${(c * 7).toFixed(4)}`;
+    const formatDate = (d: string) => d.slice(5, 10).replace('-', '/');
+
+    const cardBase: React.CSSProperties = {
+        background: C.cardBg, borderRadius: C.radiusMd,
+        border: `1px solid ${C.border}`, padding: 16,
+    };
+
+    const entries = taskHistory || [];
+    const { breakerStatus } = stats;
+
+    // 预算仪表盘 SVG 圆形参数
+    const svgSize = 120;
+    const svgCenter = svgSize / 2;
+    const svgRadius = 48;
+    const svgCircumference = 2 * Math.PI * svgRadius;
+    const usageRatio = Math.min(breakerStatus.usageRatio, 1);
+    const svgOffset = svgCircumference * (1 - usageRatio);
+    const breakerColor = breakerStatus.state === 'CLOSED' ? C.success
+        : breakerStatus.state === 'HALF_OPEN' ? C.warning
+            : C.error;
 
     return (
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>统一成本监控</h2>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{
-              width: 10, height: 10, borderRadius: '50%',
-              backgroundColor: sidecarStatus === 'online' ? 'var(--color-success)' : 'var(--color-error)',
-              display: 'inline-block',
-          }} />
-                    <span style={{ fontSize: 13, color: 'var(--color-ink-muted)' }}>
-            Sidecar {sidecarStatus === 'online' ? '运行中' : '离线'}
-          </span>
-                    <div style={{ display: 'flex', gap: 8, marginLeft: 16 }}>
-                        {(['day', 'week', 'month'] as const).map(p => (
-                            <button
-                                key={p}
-                                onClick={() => setPeriod(p)}
-                                className={`button ${period === p ? 'button-primary' : ''}`}
-                            >
-                                {{ day: '今日', week: '本周', month: '本月' }[p]}
-                            </button>
-                        ))}
+        <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+            {/* ─── 熔断闪烁遮罩 ─── */}
+            {breachFlash && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 9999, pointerEvents: 'none',
+                    background: `radial-gradient(circle, ${C.error}40 0%, transparent 70%)`,
+                    animation: 'fadeOut 2s ease-out',
+                    opacity: 0,
+                }} />
+            )}
+
+            {/* ─── 标题 ─── */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <div>
+                    <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, color: C.text, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Icon name="billing" size={24} /> 成本中心
+                    </h1>
+                    <p style={{ margin: '4px 0 0', color: C.textSecondary, fontSize: 13 }}>
+                        统一成本监控与预算管理
+                    </p>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setShowBudgetEdit(!showBudgetEdit)} style={btnPrimaryStyle}>
+                        <Icon name="billing" size={14} style={{ marginRight: 4 }} /> 预算设置
+                    </button>
+                    {breakerStatus.state === 'OPEN' && (
+                        <button onClick={handleResetBudget} style={btnDangerStyle}>
+                            <Icon name="refresh" size={14} style={{ marginRight: 4 }} /> 重置熔断器
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* ─── 预算编辑面板 ─── */}
+            {showBudgetEdit && (
+                <div style={{ ...cardBase, marginBottom: 16 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: C.text }}>预算设置</div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span style={{ fontSize: 12, color: C.textSecondary }}>预算上限 ($)：</span>
+                        <input
+                            type="number" step="0.01" min="0.01"
+                            value={editBudget}
+                            onChange={e => setEditBudget(e.target.value)}
+                            style={inputStyle}
+                        />
+                        <button onClick={handleSaveBudget} style={btnPrimaryStyle}>保存</button>
+                        <button onClick={() => setShowBudgetEdit(false)} style={btnSecondaryStyle}>取消</button>
+                        <span style={{ fontSize: 11, color: C.textLight, marginLeft: 8 }}>
+                            当前预算 {formatCost(budget)}
+                        </span>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── 熔断器 + 统计卡片 ─── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 12, marginBottom: 20 }}>
+                {/* 预算仪表盘圆形 */}
+                <div style={{
+                    ...cardBase, display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center', minWidth: 140,
+                    borderColor: breakerStatus.state === 'OPEN' ? C.error
+                        : breakerStatus.state === 'HALF_OPEN' ? C.warning
+                            : C.border,
+                }}>
+                    <svg width={svgSize} height={svgSize}>
+                        <circle cx={svgCenter} cy={svgCenter} r={svgRadius}
+                                fill="none" stroke={C.bg} strokeWidth={8} />
+                        <circle cx={svgCenter} cy={svgCenter} r={svgRadius}
+                                fill="none" stroke={breakerColor} strokeWidth={8}
+                                strokeDasharray={svgCircumference}
+                                strokeDashoffset={svgOffset}
+                                strokeLinecap="round"
+                                transform={`rotate(-90 ${svgCenter} ${svgCenter})`}
+                                style={{ transition: 'stroke-dashoffset 0.5s ease-out' }}
+                        />
+                        <text x={svgCenter} y={svgCenter - 6}
+                              textAnchor="middle" fontSize="22" fontWeight="700"
+                              fill={breakerColor}>
+                            {Math.round(usageRatio * 100)}%
+                        </text>
+                        <text x={svgCenter} y={svgCenter + 14}
+                              textAnchor="middle" fontSize="10"
+                              fill={C.textSecondary}>
+                            {breakerStatus.state === 'CLOSED' ? '正常'
+                                : breakerStatus.state === 'HALF_OPEN' ? '半开'
+                                    : '已熔断'}
+                        </text>
+                    </svg>
+                    <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 4 }}>
+                        已使用 {formatCost(breakerStatus.totalCost)}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.textSecondary }}>
+                        剩余 {formatCost(breakerStatus.remainingBudget)}
+                    </div>
+                    {breakerStatus.nextAutoRecoveryAt && (
+                        <div style={{ fontSize: 10, color: C.warning, marginTop: 4 }}>
+                            预计恢复 {new Date(breakerStatus.nextAutoRecoveryAt).toLocaleTimeString()}
+                        </div>
+                    )}
+                </div>
+
+                {/* 统计卡片网格 */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+                    <div style={cardBase}>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{formatCost(stats.totalCost)}</div>
+                        <div style={{ fontSize: 12, color: C.textLight, marginTop: 2 }}>总费用</div>
+                    </div>
+                    <div style={cardBase}>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{(stats.totalInput + stats.totalOutput).toLocaleString()}</div>
+                        <div style={{ fontSize: 12, color: C.textLight, marginTop: 2 }}>总 Token</div>
+                    </div>
+                    <div style={cardBase}>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{stats.taskCount}</div>
+                        <div style={{ fontSize: 12, color: C.textLight, marginTop: 2 }}>任务数</div>
+                    </div>
+                    <div style={{ ...cardBase, borderColor: stats.runningCount > 0 ? C.warning : C.border }}>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: C.warning }}>{stats.runningCount}</div>
+                        <div style={{ fontSize: 12, color: C.textLight, marginTop: 2 }}>运行中</div>
+                    </div>
+                    <div style={{ ...cardBase, borderColor: stats.failedCount > 0 ? C.error : C.border }}>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: C.error }}>{stats.failedCount}</div>
+                        <div style={{ fontSize: 12, color: C.textLight, marginTop: 2 }}>失败</div>
+                    </div>
+                    <div style={{ ...cardBase, borderColor: stats.breachedCount > 0 ? C.error : C.border }}>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: C.error }}>{stats.breachedCount}</div>
+                        <div style={{ fontSize: 12, color: C.textLight, marginTop: 2 }}>熔断</div>
                     </div>
                 </div>
             </div>
 
-            {/* 成本概览卡片 */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
-                <div className="card" style={{ padding: 16 }}>
-                    <div style={{ fontSize: 12, color: 'var(--color-ink-muted)', marginBottom: 8 }}>当前周期总花费</div>
-                    <div style={{ fontSize: 24, fontWeight: 600 }}>${totalCost.toFixed(4)}</div>
-                </div>
-                <div className="card" style={{ padding: 16 }}>
-                    <div style={{ fontSize: 12, color: 'var(--color-ink-muted)', marginBottom: 8 }}>月度预算</div>
-                    <div style={{ fontSize: 24, fontWeight: 600 }}>
-                        {budget ? `$${budget.budget.toFixed(2)}` : '未设置'}
+            {/* ─── 熔断器状态详情 ─── */}
+            {breakerStatus.state !== 'CLOSED' && (
+                <div style={{
+                    ...cardBase, marginBottom: 16,
+                    borderColor: breakerStatus.state === 'OPEN' ? C.error : C.warning,
+                    background: breakerStatus.state === 'OPEN' ? C.error + '08' : C.warning + '08',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, color: breakerColor }}>
+                        <Icon name="warning" size={18} color={breakerColor} />
+                        {breakerStatus.state === 'OPEN' ? '预算熔断已触发' : '预算熔断器处于半开状态'}
                     </div>
-                </div>
-                <div className="card" style={{ padding: 16 }}>
-                    <div style={{ fontSize: 12, color: 'var(--color-ink-muted)', marginBottom: 8 }}>预算使用率</div>
-                    <div style={{ fontSize: 24, fontWeight: 600, color: budgetUsage > 90 ? 'var(--color-error)' : 'var(--color-ink)' }}>
-                        {budgetUsage.toFixed(1)}%
+                    <div style={{ marginTop: 8, fontSize: 12, color: C.textSecondary, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span>当前费用：{formatCost(breakerStatus.totalCost)} / 预算上限：{formatCost(budget)}</span>
+                        <span>使用比例：{(breakerStatus.usageRatio * 100).toFixed(1)}%</span>
+                        {breakerStatus.state === 'OPEN' && breakerStatus.nextAutoRecoveryAt && (
+                            <span>预计自动恢复时间：{new Date(breakerStatus.nextAutoRecoveryAt).toLocaleTimeString()}</span>
+                        )}
+                        {breakerStatus.state === 'HALF_OPEN' && (
+                            <span>剩余测试次数：{breakerStatus.halfOpenTestsRemaining} 次</span>
+                        )}
                     </div>
+                    {breakerStatus.state === 'OPEN' && (
+                        <button onClick={handleResetBudget} style={{ ...btnDangerStyle, marginTop: 8 }}>
+                            <Icon name="refresh" size={12} style={{ marginRight: 4 }} /> 手动重置
+                        </button>
+                    )}
                 </div>
-                <div className="card" style={{ padding: 16 }}>
-                    <div style={{ fontSize: 12, color: 'var(--color-ink-muted)', marginBottom: 8 }}>本月请求数</div>
-                    <div style={{ fontSize: 24, fontWeight: 600 }}>{usages.length}</div>
-                </div>
-            </div>
+            )}
 
-            {/* 预算设置 */}
-            <div className="card" style={{ padding: 20, marginBottom: 24 }}>
-                <h3 style={{ fontWeight: 600, marginBottom: 16 }}>预算管理</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <input
-                        className="input"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="输入月度预算 (USD)"
-                        value={newBudget}
-                        onChange={e => setNewBudget(e.target.value)}
-                        style={{ width: 220 }}
-                    />
-                    <button className="button button-primary" onClick={handleSetBudget}>保存</button>
-                    <button className="button" onClick={() => {
-                        tokenAPI.setBudget(user!.id, 0).then(() => fetchBudget());
-                    }}>清除预算</button>
-                </div>
-                {budget && budgetUsage >= 80 && (
-                    <div style={{
-                        marginTop: 12, padding: '8px 12px', background: 'var(--color-warning-bg)',
-                        borderLeft: '4px solid var(--color-warning)', borderRadius: 4, fontSize: 13,
-                    }}>
-                        ⚠️ 预算已使用 {budgetUsage.toFixed(1)}%，请密切关注！
+            {/* ─── 每日趋势 ─── */}
+            <div style={{ ...cardBase, marginBottom: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 12 }}>每日费用趋势</div>
+                {stats.dailyTrend.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: 20, color: C.textLight, fontSize: 13 }}>暂无趋势数据</div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {stats.dailyTrend.map(d => {
+                            const maxCost = Math.max(...stats.dailyTrend.map(x => x.cost), 0.001);
+                            const barWidth = (d.cost / maxCost) * 100;
+                            return (
+                                <div key={d.date} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ width: 36, fontSize: 11, color: C.textSecondary, textAlign: 'right' }}>{formatDate(d.date)}</span>
+                                    <div style={{ flex: 1, height: 14, borderRadius: 3, background: C.bg, overflow: 'hidden' }}>
+                                        <div style={{
+                                            width: `${barWidth}%`, height: '100%',
+                                            background: C.primary, borderRadius: 3, transition: 'width 0.3s',
+                                        }} />
+                                    </div>
+                                    <span style={{ width: 60, fontSize: 11, color: C.textLight }}>{formatCost(d.cost)}</span>
+                                    <span style={{ width: 50, fontSize: 10, color: C.textLight }}>{d.tokens.toLocaleString()} t</span>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
 
-            {/* 消耗明细表格 */}
-            <div className="card" style={{ padding: 16 }}>
-                <h3 style={{ fontWeight: 600, marginBottom: 16 }}>消耗明细</h3>
-                {loading ? (
-                    <div>加载中...</div>
-                ) : usages.length === 0 ? (
-                    <div style={{ textAlign: 'center', color: 'var(--color-ink-muted)', padding: 32 }}>暂无数据</div>
+            {/* ─── 成本明细列表 ─── */}
+            <div style={cardBase}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 12 }}>成本明细</div>
+                {entries.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: 20, color: C.textLight, fontSize: 13 }}>暂无成本记录</div>
                 ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                        <tr style={{ borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
-                            <th style={{ padding: '8px 0' }}>日期</th>
-                            <th>花费 (USD)</th>
-                            <th>预估消耗</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {usages.map((u, i) => (
-                            <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                <td style={{ padding: '8px 0' }}>{u.date}</td>
-                                <td style={{ color: 'var(--color-error)', fontWeight: 600 }}>${u.cost.toFixed(4)}</td>
-                                <td style={{ color: 'var(--color-ink-muted)', fontSize: 12 }}>基于官方使用量校准</td>
-                            </tr>
-                        ))}
-                        </tbody>
-                    </table>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div style={{
+                            display: 'flex', gap: 8, padding: '8px 10px', fontSize: 11, color: C.textLight,
+                            fontWeight: 600, borderBottom: `1px solid ${C.border}`,
+                        }}>
+                            <span style={{ flex: 2 }}>任务名称</span>
+                            <span style={{ flex: 1, textAlign: 'right' }}>输入 Token</span>
+                            <span style={{ flex: 1, textAlign: 'right' }}>输出 Token</span>
+                            <span style={{ flex: 1, textAlign: 'right' }}>成本</span>
+                            <span style={{ flex: 1, textAlign: 'center' }}>状态</span>
+                        </div>
+                        {entries.map(e => {
+                            const statusColor = e.status === 'completed' ? C.success
+                                : e.status === 'running' ? C.warning
+                                    : e.status === 'breached' ? C.error
+                                        : C.textLight;
+                            const statusLabel = e.status === 'completed' ? '完成'
+                                : e.status === 'running' ? '运行中'
+                                    : e.status === 'breached' ? '熔断'
+                                        : e.status === 'failed' ? '失败'
+                                            : '等待';
+                            return (
+                                <div key={e.taskId} style={{
+                                    display: 'flex', gap: 8, padding: '8px 10px',
+                                    fontSize: 12, color: C.text, borderBottom: `1px solid ${C.border}`,
+                                    background: e.status === 'breached' ? C.error + '08' : 'transparent',
+                                }}>
+                                    <span style={{ flex: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {e.originalInput?.slice(0, 40) || e.taskId}
+                                    </span>
+                                    <span style={{ flex: 1, textAlign: 'right', color: C.textSecondary }}>
+                                        {(e.totalTokens?.input || 0).toLocaleString()}
+                                    </span>
+                                    <span style={{ flex: 1, textAlign: 'right', color: C.textSecondary }}>
+                                        {(e.totalTokens?.output || 0).toLocaleString()}
+                                    </span>
+                                    <span style={{ flex: 1, textAlign: 'right', fontWeight: 500 }}>
+                                        {formatCost(e.totalCost || 0)}
+                                    </span>
+                                    <span style={{ flex: 1, textAlign: 'center', color: statusColor }}>
+                                        {statusLabel}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
                 )}
             </div>
         </div>
     );
 };
+
+// ─── 样式 ───
+const inputStyle: React.CSSProperties = {
+    padding: '6px 10px', borderRadius: C.radiusSm, border: `1px solid ${C.border}`,
+    background: C.bg, color: C.text, fontSize: 13, outline: 'none', width: 120,
+};
+const btnPrimaryStyle: React.CSSProperties = {
+    padding: '6px 14px', borderRadius: C.radiusSm, border: 'none',
+    background: C.primary, color: C.textInverse, cursor: 'pointer',
+    fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center',
+};
+const btnSecondaryStyle: React.CSSProperties = {
+    padding: '6px 14px', borderRadius: C.radiusSm, border: `1px solid ${C.border}`,
+    background: C.cardBg, color: C.textSecondary, cursor: 'pointer',
+    fontSize: 12, display: 'inline-flex', alignItems: 'center',
+};
+const btnDangerStyle: React.CSSProperties = {
+    padding: '6px 14px', borderRadius: C.radiusSm, border: `1px solid ${C.error}`,
+    background: 'transparent', color: C.error, cursor: 'pointer',
+    fontSize: 12, display: 'inline-flex', alignItems: 'center',
+};
+const DEFAULT_BUDGET = 0.05;
+
+function showToast(msg: string, type: 'success' | 'error' | 'info' = 'info') {
+    // 简单 toast——实际使用项目中引入的 showToast
+    const { showToast: st } = require('../components/Toast') as { showToast: (m: string, t?: 'success' | 'error' | 'info') => void };
+    st(msg, type);
+}
+
+export default CostCenter;

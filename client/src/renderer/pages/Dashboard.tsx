@@ -1,387 +1,491 @@
 // client/src/renderer/pages/Dashboard.tsx
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    PieChart, Pie, Cell
+    AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+    ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts';
 import { useUserStore } from '../store/user.store';
-import { tokenAPI, TokenUsage, BudgetInfo } from '../api/token';
-import { userAPI } from '../api/user';
-import { FocusPanel } from '../components/FocusPanel';
+import { apiClient } from '../api/client.api';
 import { showToast } from '../components/Toast';
+import {UserProvider} from "@shared/types";
+import { C } from '../styles/theme';
+import { Icon } from '../components/icons';
+import {useTaskExecutionStore} from "@renderer/store/taskExecution.store";
+import { useAgentRegistryStore } from '../store/agentRegistry.store';
 
-const COLORS = {
-    primary: '#6C5CE7',
-    success: '#00B894',
-    warning: '#FDCB6E',
-    error: '#E17055',
-    info: '#74B9FF',
-};
+interface DailyUsage {
+    date: string;
+    cost: number;
+    tokens: number;
+}
 
-const mockTrend = [
-    { date: '00:00', cost: 0.12 },
-    { date: '04:00', cost: 0.08 },
-    { date: '08:00', cost: 0.45 },
-    { date: '12:00', cost: 1.20 },
-    { date: '16:00', cost: 2.30 },
-    { date: '20:00', cost: 1.80 },
-    { date: '23:59', cost: 0.95 },
-];
+interface UsageRecord {
+    id: string;
+    createdAt: string;
+    model: string;
+    provider: string;
+    tokensIn: number;
+    tokensOut: number;
+    cost: number;
+}
 
-export const Dashboard: React.FC = () => {
-    const user = useUserStore(s => s.user);
-    const [usages, setUsages] = useState<TokenUsage[]>([]);
-    const [budget, setBudget] = useState<BudgetInfo | null>(null);
-    const [credits, setCredits] = useState<number>(0);
-    const [period, setPeriod] = useState<'day' | 'week' | 'month'>('day');
-    const [totalCost, setTotalCost] = useState(0);
-    const [totalTokens, setTotalTokens] = useState(0);
+interface UsageStats {
+    totalCost: number;
+    totalTokens: number;
+    totalRequests: number;
+    successCount: number;
+    failCount: number;
+    avgLatency: number;
+    daily: DailyUsage[];
+    records?: UsageRecord[];
+    details: UsageRecord[];
+}
 
-    const [focusPanelVisible, setFocusPanelVisible] = useState(false);
-    const [focusPanelTitle, setFocusPanelTitle] = useState('');
-    const [focusContent, setFocusContent] = useState<React.ReactNode>(null);
+// ─── 子组件：API Key 管理面板 ───
+const ApiKeyPanel: React.FC = () => {
+    const [providers, setProviders] = useState<UserProvider[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [form, setForm] = useState({ providerName: '', apiKey: '', baseUrl: '' });
 
-    const fetchData = useCallback(async () => {
-        if (!user) return;
+    const fetchProviders = useCallback(async () => {
         try {
-            const data = await tokenAPI.getUsageByPeriod(user.id, period);
-            if (Array.isArray(data?.data)) {
-                const formatted = data.data.map((d: any) => ({
-                    id: d.date,
-                    userId: user.id,
-                    modelName: '-',
-                    inputTokens: d.tokens ?? 0,
-                    outputTokens: 0,
-                    costUsd: d.cost ?? 0,
-                    createdAt: d.date,
-                }));
-                setUsages(formatted);
-                const cost = formatted.reduce((sum: number, d: any) => sum + d.costUsd, 0);
-                const tok = formatted.reduce((sum: number, d: any) => sum + d.inputTokens + d.outputTokens, 0);
-                setTotalCost(cost);
-                setTotalTokens(tok);
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    }, [user, period]);
+            const res = await apiClient<UserProvider[]>('/model-gateway/providers');
+            setProviders(res);
+        } catch { /* ignore */ }
+        setLoading(false);
+    }, []);
 
-    const fetchBudget = useCallback(async () => {
-        if (!user) return;
+    useEffect(() => { fetchProviders(); }, [fetchProviders]);
+
+    const addProvider = async () => {
         try {
-            const b = await tokenAPI.getBudget(user.id);
-            setBudget(b);
-        } catch (e) {}
-    }, [user]);
-
-    const fetchCredits = useCallback(async () => {
-        if (!user) return;
-        try {
-            const res = await userAPI.getBalance();
-            setCredits(res.credits);
-        } catch (e) {}
-    }, [user]);
-
-    useEffect(() => {
-        fetchData();
-        fetchBudget();
-        fetchCredits();
-        const timer = setInterval(fetchData, 15000);
-        return () => clearInterval(timer);
-    }, [fetchData, fetchBudget, fetchCredits]);
-
-    const handleSpikeFocus = (date: string) => {
-        setFocusPanelTitle('消耗溯源');
-        setFocusContent(
-            <div>
-                <p style={{ marginBottom: 16 }}>
-                    时段 <strong>{date}</strong> 出现异常消耗尖峰，总花费{' '}
-                    <strong style={{ color: COLORS.error }}>$2.30</strong>，较均值增长 180%。
-                </p>
-                <div style={{
-                    background: '#1E1E1E', color: '#0f0', padding: 12,
-                    borderRadius: 6, fontFamily: 'var(--font-family-mono)', fontSize: 12,
-                }}>
-                    <div>🟢 12:05 | task: "market-report-gen" | cost: $1.20</div>
-                    <div>🟢 12:12 | task: "competitor-analysis" | cost: $0.80</div>
-                    <div>
-                        🔴 12:20 | task: "thursday-newsletter" | cost: $0.30{' '}
-                        <span style={{ color: '#f00' }}>← 检测到重复查询</span>
-                    </div>
-                </div>
-                <button
-                    className="button button-primary"
-                    style={{ marginTop: 16 }}
-                    onClick={() => showToast('已启用语义缓存（模拟）', 'success')}
-                >
-                    一键启用优化
-                </button>
-            </div>
-        );
-        setFocusPanelVisible(true);
+            await apiClient('/model-gateway/providers', {
+                method: 'POST',
+                body: JSON.stringify(form),
+            });
+            showToast('添加成功', 'success');
+            setForm({ providerName: '', apiKey: '', baseUrl: '' });
+            fetchProviders();
+        } catch { showToast('添加失败', 'error'); }
     };
 
-    const handleCostFocus = () => {
-        setFocusPanelTitle('成本明细');
-        setFocusContent(
-            <div>
-                {usages.slice(0, 10).map((u, i) => (
-                    <div key={i} style={{
-                        padding: '8px 0', borderBottom: '1px solid var(--color-border)',
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        fontSize: 13,
-                    }}>
-                        <span style={{ fontFamily: 'var(--font-family-mono)', fontSize: 11, flex: 2 }}>
-                            {new Date(u.createdAt).toLocaleString()}
-                        </span>
-                        <span style={{ flex: 1, textAlign: 'right' }}>{u.modelName}</span>
-                        <span style={{ flex: 1, textAlign: 'right', fontFamily: 'var(--font-family-mono)' }}>
-                            {u.inputTokens + u.outputTokens} tok
-                        </span>
-                        <span style={{ flex: 1, textAlign: 'right', color: 'var(--color-error)', fontWeight: 600 }}>
-                            ${u.costUsd.toFixed(4)}
-                        </span>
-                        {u.skillId && (
-                            <span style={{
-                                background: 'var(--color-surface-1)', padding: '0 4px',
-                                borderRadius: 4, fontSize: 10, marginLeft: 8, cursor: 'pointer',
-                            }}>
-                                {u.skillId}
-                            </span>
-                        )}
-                    </div>
-                ))}
-                {usages.length === 0 && (
-                    <p style={{ color: 'var(--color-ink-muted)', textAlign: 'center', padding: 20 }}>
-                        暂无详细记录
-                    </p>
-                )}
-            </div>
-        );
-        setFocusPanelVisible(true);
+    const deleteProvider = async (id: string) => {
+        try {
+            await apiClient(`/model-gateway/providers/${id}`, { method: 'DELETE' });
+            showToast('已删除', 'success');
+            fetchProviders();
+        } catch { showToast('删除失败', 'error'); }
     };
 
-    const budgetUsage = budget?.usageRate ?? 0;
-    const todayCost = totalCost;
+    if (loading) return <div style={{ padding: 24, color: C.textLight }}>加载中...</div>;
 
     return (
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-            {/* 头部 */}
-            <div style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24,
+        <div>
+            {/* 添加表单 */}
+            <div className="card" style={{
+                padding: 16,
+                marginBottom: 16,
+                background: C.cardBg,
+                borderRadius: C.radiusMd,
+                border: `1px solid ${C.border}`,
             }}>
-                <h2 style={{ fontSize: 'var(--text-title)', fontWeight: 600 }}>仪表盘</h2>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    {(['day', 'week', 'month'] as const).map(p => (
-                        <button
-                            key={p}
-                            onClick={() => setPeriod(p)}
-                            className={`button ${period === p ? 'button-primary' : ''}`}
-                        >
-                            {{ day: '今日', week: '本周', month: '本月' }[p]}
-                        </button>
-                    ))}
+                <h4 style={{ fontWeight: 600, marginBottom: 12, fontSize: 14 }}>添加 API Key</h4>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <select
+                        value={form.providerName}
+                        onChange={(e) => setForm(p => ({ ...p, providerName: e.target.value }))}
+                        style={{ padding: '6px 10px', borderRadius: 6, border: `1px solid ${C.border}`, fontSize: 13 }}
+                    >
+                        <option value="">选择平台</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="claude">Claude</option>
+                        <option value="gemini">Gemini</option>
+                        <option value="moonshot">Moonshot</option>
+                        <option value="custom">自定义</option>
+                    </select>
+                    <input
+                        placeholder="API Key"
+                        value={form.apiKey}
+                        onChange={(e) => setForm(p => ({ ...p, apiKey: e.target.value }))}
+                        style={{ flex: 1, minWidth: 200, padding: '6px 10px', borderRadius: 6, border: `1px solid ${C.border}`, fontSize: 13 }}
+                    />
+                    <input
+                        placeholder="Base URL (可选)"
+                        value={form.baseUrl}
+                        onChange={(e) => setForm(p => ({ ...p, baseUrl: e.target.value }))}
+                        style={{ flex: 1, minWidth: 200, padding: '6px 10px', borderRadius: 6, border: `1px solid ${C.border}`, fontSize: 13 }}
+                    />
+                    <button className="button button-primary" onClick={addProvider}>添加</button>
                 </div>
             </div>
 
-            {/* 预算告警 */}
-            {budget && budgetUsage >= 80 && (
-                <div style={{
-                    padding: '12px 16px',
-                    background: budgetUsage >= 95 ? 'var(--color-error-bg)' : 'var(--color-warning-bg)',
-                    borderLeft: `4px solid ${budgetUsage >= 95 ? 'var(--color-error)' : 'var(--color-warning)'}`,
-                    marginBottom: 16,
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 14,
-                }}>
-                    <strong>预算使用已达 {budgetUsage.toFixed(1)}%</strong>
-                    {budgetUsage >= 95
-                        ? '，当月预算即将耗尽！请调整预算或暂停非必要任务。'
-                        : '，建议关注 Token 消耗。'}
-                </div>
-            )}
-
-            {/* 成本总览卡片组 */}
-            <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                gap: 16, marginBottom: 24,
-            }}>
-                <div className="card" style={{ padding: 16 }}>
-                    <div style={{ fontSize: 'var(--text-caption)', color: 'var(--color-ink-muted)', marginBottom: 8 }}>
-                        今日花费 (USD)
-                    </div>
-                    <div style={{
-                        fontSize: 24, fontWeight: 600,
-                        color: todayCost > 0 ? 'var(--color-ink)' : 'var(--color-ink-subtle)',
-                    }}>
-                        {todayCost > 0 ? `$${todayCost.toFixed(4)}` : '—'}
-                    </div>
-                </div>
-                <div className="card" style={{ padding: 16 }}>
-                    <div style={{ fontSize: 'var(--text-caption)', color: 'var(--color-ink-muted)', marginBottom: 8 }}>
-                        剩余预算 (本月)
-                    </div>
-                    <div style={{
-                        fontSize: 24, fontWeight: 600,
-                        color: budget && budget.remaining > 0 ? 'var(--color-ink)' : 'var(--color-error)',
-                    }}>
-                        {budget ? `$${budget.remaining.toFixed(2)}` : '未设置'}
-                    </div>
-                    {budget && (
-                        <div style={{ fontSize: 11, color: 'var(--color-ink-muted)', marginTop: 4 }}>
-                            总预算: ${budget.budget.toFixed(2)}
-                        </div>
-                    )}
-                </div>
-                <div className="card" style={{ padding: 16 }}>
-                    <div style={{ fontSize: 'var(--text-caption)', color: 'var(--color-ink-muted)', marginBottom: 8 }}>
-                        Token 消耗
-                    </div>
-                    <div style={{ fontSize: 24, fontWeight: 600 }}>
-                        {totalTokens.toLocaleString()}
-                    </div>
-                </div>
-                <div className="card" style={{ padding: 16 }}>
-                    <div style={{ fontSize: 'var(--text-caption)', color: 'var(--color-ink-muted)', marginBottom: 8 }}>
-                        信用点余额
-                    </div>
-                    <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--color-primary)' }}>
-                        {credits.toFixed(0)} <span style={{ fontSize: 14, fontWeight: 400 }}>点</span>
-                    </div>
-                </div>
+            {/* 列表 */}
+            <div className="card" style={{ padding: 16, background: C.cardBg, borderRadius: C.radiusMd, border: `1px solid ${C.border}` }}>
+                <h4 style={{ fontWeight: 600, marginBottom: 12, fontSize: 14 }}>已配置的 API Key</h4>
+                {providers.length === 0 ? (
+                    <p style={{ color: C.textLight, textAlign: 'center', padding: 16 }}>暂无配置</p>
+                ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                        <thead>
+                        <tr style={{ borderBottom: `2px solid ${C.border}`, color: C.textSecondary }}>
+                            <th style={{ textAlign: 'left', padding: '6px 4px' }}>平台</th>
+                            <th style={{ textAlign: 'left', padding: '6px 4px' }}>API Key</th>
+                            <th style={{ textAlign: 'left', padding: '6px 4px' }}>Base URL</th>
+                            <th style={{ textAlign: 'right', padding: '6px 4px' }}>操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {providers.map(p => (
+                            <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                                <td style={{ padding: '6px 4px', fontWeight: 600 }}>{p.providerName}</td>
+                                <td style={{ padding: '6px 4px', fontFamily: 'monospace' }}>
+                                    {p.apiKeyPreview?.slice(0, 8) || p.id.slice(0, 8)}
+                                </td>
+                                <td style={{ padding: '6px 4px', color: C.textSecondary, fontSize: 12 }}>
+                                    {p.baseUrl || '-'}
+                                </td>
+                                <td style={{ padding: '6px 4px', textAlign: 'right' }}>
+                                    <button onClick={() => deleteProvider(p.id)} style={{
+                                        padding: '2px 10px', borderRadius: 4, border: `1px solid ${C.error}`,
+                                        background: 'transparent', color: C.error, cursor: 'pointer', fontSize: 12,
+                                    }}>删除</button>
+                                </td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                )}
             </div>
-
-            {/* 趋势图区域 */}
-            <div style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24,
-            }}>
-                {/* 面积图 */}
-                <div
-                    className="card"
-                    style={{ padding: 16, cursor: 'pointer' }}
-                    onClick={() => handleSpikeFocus('12:00')}
-                >
-                    <h3 style={{ fontWeight: 600, marginBottom: 12, fontSize: 'var(--text-body)' }}>
-                        消耗趋势（点击尖峰聚焦）
-                    </h3>
-                    <ResponsiveContainer width="100%" height={200}>
-                        <AreaChart data={mockTrend}>
-                            <defs>
-                                <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                            <XAxis dataKey="date" fontSize={12} />
-                            <YAxis fontSize={12} />
-                            <Tooltip />
-                            <Area
-                                type="monotone" dataKey="cost"
-                                stroke={COLORS.primary} fill="url(#colorCost)" strokeWidth={2}
-                            />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* 预算环形图 */}
-                <div className="card" style={{ padding: 16 }}>
-                    <h3 style={{ fontWeight: 600, marginBottom: 12, fontSize: 'var(--text-body)' }}>
-                        预算健康度
-                    </h3>
-                    <ResponsiveContainer width="100%" height={200}>
-                        <PieChart>
-                            <Pie
-                                data={[
-                                    { name: '已用', value: budgetUsage },
-                                    { name: '剩余', value: Math.max(0, 100 - budgetUsage) },
-                                ]}
-                                cx="50%" cy="50%" innerRadius={60} outerRadius={80}
-                                dataKey="value" startAngle={90} endAngle={-270}
-                            >
-                                <Cell fill={budgetUsage > 80 ? COLORS.error : COLORS.primary} />
-                                <Cell fill="#f0f0f0" />
-                            </Pie>
-                            <Tooltip />
-                        </PieChart>
-                    </ResponsiveContainer>
-                    <div style={{
-                        textAlign: 'center', marginTop: -20, fontSize: 14,
-                        color: 'var(--color-ink-muted)',
-                    }}>
-                        {budget
-                            ? `已用 $${budget.used.toFixed(2)} / 预算 $${budget.budget.toFixed(2)}`
-                            : '未设置预算'}
-                    </div>
-                </div>
-            </div>
-
-            {/* 最近消耗记录 */}
-            <div className="card" style={{ padding: 16 }}>
-                <div style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    marginBottom: 12,
-                }}>
-                    <h3 style={{ fontWeight: 600, fontSize: 'var(--text-body)' }}>最近消耗记录</h3>
-                    <button className="button" onClick={handleCostFocus}>聚焦详情</button>
-                </div>
-                <div style={{ maxHeight: 220, overflow: 'auto' }}>
-                    {usages.length === 0 && (
-                        <p style={{
-                            color: 'var(--color-ink-muted)', textAlign: 'center', padding: 24,
-                        }}>
-                            暂无消耗记录
-                        </p>
-                    )}
-                    {usages.slice(-15).map((u, i) => (
-                        <div
-                            key={i}
-                            style={{
-                                display: 'flex', justifyContent: 'space-between',
-                                alignItems: 'center', padding: '6px 0',
-                                borderBottom: '1px solid var(--color-border)', fontSize: 13,
-                            }}
-                        >
-                            <span style={{
-                                fontFamily: 'var(--font-family-mono)', fontSize: 11, flex: 2,
-                            }}>
-                                {new Date(u.createdAt).toLocaleString()}
-                            </span>
-                            <span style={{ flex: 1, textAlign: 'right' }}>{u.modelName}</span>
-                            <span style={{
-                                flex: 1, textAlign: 'right',
-                                fontFamily: 'var(--font-family-mono)',
-                            }}>
-                                {u.inputTokens + u.outputTokens} tok
-                            </span>
-                            <span style={{
-                                flex: 1, textAlign: 'right',
-                                color: 'var(--color-error)', fontWeight: 600,
-                            }}>
-                                ${u.costUsd.toFixed(4)}
-                            </span>
-                            {u.skillId && (
-                                <span style={{
-                                    background: 'var(--color-surface-1)',
-                                    padding: '0 4px', borderRadius: 4,
-                                    fontSize: 10, marginLeft: 8, cursor: 'pointer',
-                                }}>
-                                    {u.skillId}
-                                </span>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* 聚焦面板 */}
-            <FocusPanel
-                visible={focusPanelVisible}
-                title={focusPanelTitle}
-                onClose={() => setFocusPanelVisible(false)}
-            >
-                {focusContent}
-            </FocusPanel>
         </div>
     );
 };
+
+// ─── 主组件 ───
+const COLORS = ['#6C5CE7', '#00B894', '#FDCB6E', '#E17055', '#74B9FF', '#A29BFE', '#55EFC4', '#FAB1A0'];
+
+type Tab = 'overview' | 'usage' | 'cost' | 'requests' | 'apikeys';
+
+const Dashboard: React.FC = () => {
+    const [stats, setStats] = useState<UsageStats | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<Tab>('overview');
+
+    const user = useUserStore((s) => s.user);
+    const { taskHistory } = useTaskExecutionStore();
+
+    const fetchStats = useCallback(async () => {
+        try {
+            const res = await apiClient<UsageStats>('/model-gateway/stats');
+            setStats(res);
+        } catch { /* ignore */ }
+        setLoading(false);
+    }, []);
+
+    useEffect(() => { fetchStats(); }, [fetchStats]);
+
+    // ─── 从 taskHistory 派生的统计 ───
+    const taskStats = useMemo(() => {
+        const tasks = taskHistory.filter(t => t.status === 'completed' || t.status === 'failed');
+        const successCount = tasks.filter(t => t.status === 'completed').length;
+        const failCount = tasks.filter(t => t.status === 'failed').length;
+        const totalTokens = tasks.reduce((s, t) => s + t.totalTokens.input + t.totalTokens.output, 0);
+        const totalCost = tasks.reduce((s, t) => s + t.totalCost, 0);
+        const totalRequests = tasks.length;
+
+        // 按日期聚合
+        const dailyMap: Record<string, { cost: number; tokens: number }> = {};
+        tasks.forEach(t => {
+            const date = new Date(t.createdAt).toISOString().slice(0, 10);
+            if (!dailyMap[date]) dailyMap[date] = { cost: 0, tokens: 0 };
+            dailyMap[date].cost += t.totalCost;
+            dailyMap[date].tokens += t.totalTokens.input + t.totalTokens.output;
+        });
+        const daily = Object.entries(dailyMap).sort(([a], [b]) => a.localeCompare(b)).map(([date, v]) => ({
+            date, cost: v.cost, tokens: v.tokens,
+        }));
+
+        return { totalTokens, totalCost, totalRequests, successCount, failCount, daily };
+    }, [taskHistory]);
+
+    const modelBreakdown = useMemo(() => {
+        if (!stats?.records) return [];
+        const map: Record<string, number> = {};
+        stats.records.forEach(r => { map[r.model] = (map[r.model] || 0) + r.cost; });
+        return Object.entries(map).map(([name, cost]) => ({ name, cost }));
+    }, [stats]);
+
+    // Agent 执行概况（来自 taskExecutionStore）
+    const agentStats = useMemo(() => {
+        const h = taskHistory || [];
+        return {
+            total: h.length,
+            running: h.filter(t => t.status === 'running').length,
+            failed: h.filter(t => t.status === 'failed').length,
+            breached: h.filter(t => t.status === 'breached').length,
+            totalCost: h.reduce((s, t) => s + (t.totalCost || 0), 0),
+            lastRun: h[0]?.originalInput?.slice(0, 30) || '无',
+        };
+    }, [taskHistory]);
+
+    // ─── 渲染器 ───
+
+    const renderOverview = useCallback(() => {
+        const { registrations } = useAgentRegistryStore.getState();
+        const { taskHistory } = useTaskExecutionStore.getState();
+
+        const agentStats = {
+            total: registrations.length,
+            online: registrations.filter(a => a.status === 'idle').length,
+            busy: registrations.filter(a => a.status === 'busy').length,
+            offline: registrations.filter(a => a.status === 'offline').length,
+        };
+
+        const completedTasks = taskHistory.filter(t => t.status === 'completed' || t.status === 'failed');
+        const successCount = completedTasks.filter(t => t.status === 'completed').length;
+        const failCount = completedTasks.filter(t => t.status === 'failed').length;
+        const totalTaskCost = completedTasks.reduce((s, t) => s + t.totalCost, 0);
+        const totalTaskTokens = completedTasks.reduce((s, t) => s + t.totalTokens.input + t.totalTokens.output, 0);
+
+        return (
+            <div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
+                    <StatCard icon="cpu" label="Agent 总数" value={agentStats.total.toString()} color={C.primary} />
+                    <StatCard icon="check" label="在线 Agent" value={agentStats.online.toString()} color={C.success} />
+                    <StatCard icon="play" label="忙碌 Agent" value={agentStats.busy.toString()} color={C.warning} />
+                    <StatCard icon="x" label="离线 Agent" value={agentStats.offline.toString()} color={C.textLight} />
+                    <StatCard icon="tasks" label="完成任务" value={successCount.toString()} color={C.primary} />
+                    <StatCard icon="alert" label="失败任务" value={failCount.toString()} color={C.error} />
+                    <StatCard icon="dollar" label="总花费" value={`¥${totalTaskCost.toFixed(4)}`} color={C.warning} />
+                    <StatCard icon="zap" label="总 Token" value={totalTaskTokens.toLocaleString()} color={C.success} />
+                </div>
+                {registrations.length > 0 && (
+                    <div style={{ background: C.cardBg, borderRadius: C.radiusMd, border: `1px solid ${C.border}`, padding: 16 }}>
+                        <h4 style={{ fontWeight: 600, marginBottom: 12, fontSize: 14, color: C.text }}>已注册 Agent</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {registrations.map(a => (
+                                <div key={a.agentId} style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                    padding: '8px 12px', background: C.bg, borderRadius: C.radiusSm,
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{
+                                        width: 8, height: 8, borderRadius: '50%',
+                                        background: a.status === 'idle' ? C.success : a.status === 'busy' ? C.warning : C.textLight,
+                                    }} />
+                                        <span style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{a.name}</span>
+                                        <span style={{ fontSize: 11, color: C.textLight }}>({a.agentId.slice(0, 12)}...)</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ fontSize: 11, color: C.textSecondary }}>
+                                        {a.model || a.framework}
+                                    </span>
+                                        <span style={{
+                                            fontSize: 11, padding: '2px 6px', borderRadius: 4,
+                                            background: a.builtin ? C.primary + '18' : C.border,
+                                            color: a.builtin ? C.primary : C.textSecondary,
+                                        }}>
+                                        {a.builtin ? '内置' : '注册'}
+                                    </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }, []);
+
+    const StatCard: React.FC<{ icon: string; label: string; value: string; color: string }> = ({ icon, label, value, color }) => (
+        <div style={{
+            background: C.cardBg, borderRadius: C.radiusMd, border: `1px solid ${C.border}`,
+            padding: 16, display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icon name={icon as any} size={14} color={color} />
+                <span style={{ fontSize: 12, color: C.textSecondary }}>{label}</span>
+            </div>
+            <span style={{ fontSize: 22, fontWeight: 700, color }}>{value}</span>
+        </div>
+    );
+
+    const renderUsage = () => (
+        <>
+            {/* 用量概览 */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+                {[
+                    { label: '请求总额', value: taskStats.totalRequests.toLocaleString(), color: C.primary },
+                    { label: '成功', value: (taskStats.successCount ?? 0).toLocaleString(), color: C.success },
+                    { label: '失败', value: (taskStats.failCount ?? 0).toLocaleString(), color: C.error },
+                    { label: '平均延迟', value: stats?.avgLatency ? `${stats.avgLatency.toFixed(0)}ms` : 'N/A', color: C.warning },
+                ].map(card => (
+                    <div key={card.label} className="card" style={{ padding: 16 }}>
+                        <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 4 }}>{card.label}</div>
+                        <div style={{ fontSize: 24, fontWeight: 700, color: card.color }}>{card.value}</div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Token 明细 */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+                {[
+                    { label: '总消耗 Token', value: taskStats.totalTokens.toLocaleString(), color: C.primary },
+                    { label: '输入 Tokens', value: (stats?.records?.reduce((s, r) => s + r.tokensIn, 0) ?? 0).toLocaleString(), color: C.info },
+                    { label: '输出 Tokens', value: (stats?.records?.reduce((s, r) => s + r.tokensOut, 0) ?? 0).toLocaleString(), color: C.success },
+                    { label: '缓存读取', value: '—', color: C.textLight },
+                    { label: '执行次数', value: taskStats.totalRequests.toLocaleString(), color: C.info },
+                    { label: '任务数', value: (taskStats.successCount + taskStats.failCount).toLocaleString(), color: C.warning },
+                    { label: '总花费', value: `¥${taskStats.totalCost.toFixed(4)}`, color: C.success },
+                ].map(card => (
+                    <div key={card.label} className="card" style={{ padding: 16 }}>
+                        <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 4 }}>{card.label}</div>
+                        <div style={{ fontSize: 24, fontWeight: 700, color: card.color }}>{card.value}</div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Token 趋势 */}
+            <div className="card" style={{ padding: 16 }}>
+                <h3 style={{ fontWeight: 600, marginBottom: 12, fontSize: 14 }}>Token 消耗趋势</h3>
+                <ResponsiveContainer width="100%" height={240}>
+                    <AreaChart data={taskStats.daily.length > 0 ? taskStats.daily : [{ date: '暂无', cost: 0, tokens: 0 }]}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                        <XAxis dataKey="date" tick={{ fontSize: 11, fill: C.textLight }} />
+                        <YAxis tick={{ fontSize: 11, fill: C.textLight }} />
+                        <Tooltip />
+                        <Area type="monotone" dataKey="tokens" stroke={C.success} fill={C.success} fillOpacity={0.1} name="Tokens" />
+                    </AreaChart>
+                </ResponsiveContainer>
+            </div>
+        </>
+    );
+
+    const renderCost = () => (
+        <>
+            {/* 费用概览 */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+                {[
+                    { label: '总费用', value: `$${taskStats.totalCost.toFixed(4)}`, color: C.error },
+                    { label: '日均费用', value: `$${(taskStats.totalCost / Math.max(taskStats.daily.length, 1)).toFixed(4)}`, color: C.warning },
+                    { label: '平均单次费用', value: `$${(taskStats.totalCost / Math.max(taskStats.totalRequests, 1)).toFixed(6)}`, color: C.primary },
+                ].map(card => (
+                    <div key={card.label} className="card" style={{ padding: 16 }}>
+                        <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 4 }}>{card.label}</div>
+                        <div style={{ fontSize: 24, fontWeight: 700, color: card.color }}>{card.value}</div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="card" style={{ padding: 16 }}>
+                <h3 style={{ fontWeight: 600, marginBottom: 12, fontSize: 14 }}>费用趋势</h3>
+                <ResponsiveContainer width="100%" height={240}>
+                    <AreaChart data={taskStats.daily.length > 0 ? taskStats.daily : [{ date: '暂无', cost: 0, tokens: 0 }]}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                        <XAxis dataKey="date" tick={{ fontSize: 11, fill: C.textLight }} />
+                        <YAxis tick={{ fontSize: 11, fill: C.textLight }} />
+                        <Tooltip />
+                        <Area type="monotone" dataKey="cost" stroke={C.error} fill={C.error} fillOpacity={0.1} name="费用 ($)" />
+                    </AreaChart>
+                </ResponsiveContainer>
+            </div>
+        </>
+    );
+
+    const renderRequests = () => {
+        const records = stats?.details ?? stats?.records ?? [];
+        const maxRecords = 100;
+        const filteredRecords = records.slice(0, maxRecords);
+
+        return (
+            <div className="card" style={{ padding: 16 }}>
+                <h3 style={{ fontWeight: 600, marginBottom: 12, fontSize: 14 }}>请求记录</h3>
+                <div style={{ maxHeight: 480, overflow: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                        <tr style={{ borderBottom: `2px solid ${C.border}`, color: C.textSecondary }}>
+                            <th style={{ textAlign: 'left', padding: '6px 4px' }}>时间</th>
+                            <th style={{ textAlign: 'left', padding: '6px 4px' }}>模型</th>
+                            <th style={{ textAlign: 'left', padding: '6px 4px' }}>Provider</th>
+                            <th style={{ textAlign: 'right', padding: '6px 4px' }}>输入 Tokens</th>
+                            <th style={{ textAlign: 'right', padding: '6px 4px' }}>输出 Tokens</th>
+                            <th style={{ textAlign: 'right', padding: '6px 4px' }}>费用</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {filteredRecords.length === 0 ? (
+                            <tr><td colSpan={6} style={{ textAlign: 'center', padding: 24, color: C.textLight }}>暂无记录</td></tr>
+                        ) : filteredRecords.map(r => (
+                            <tr key={r.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                                <td style={{ padding: '6px 4px', fontFamily: 'monospace', fontSize: 11 }}>
+                                    {new Date(r.createdAt).toLocaleString('zh-CN')}
+                                </td>
+                                <td style={{ padding: '6px 4px', fontWeight: 600 }}>{r.model}</td>
+                                <td style={{ padding: '6px 4px' }}>{r.provider}</td>
+                                <td style={{ padding: '6px 4px', textAlign: 'right', fontFamily: 'monospace' }}>
+                                    {r.tokensIn.toLocaleString()}
+                                </td>
+                                <td style={{ padding: '6px 4px', textAlign: 'right', fontFamily: 'monospace' }}>
+                                    {r.tokensOut.toLocaleString()}
+                                </td>
+                                <td style={{ padding: '6px 4px', textAlign: 'right', fontFamily: 'monospace', color: C.error }}>
+                                    ${r.cost.toFixed(4)}
+                                </td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+            {/* 二级菜单 Tabs */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 24, borderBottom: `1px solid ${C.border}`, paddingBottom: 0 }}>
+                {[
+                    { key: 'overview' as Tab, label: '总览' },
+                    { key: 'usage' as Tab, label: '用量' },
+                    { key: 'cost' as Tab, label: '费用' },
+                    { key: 'requests' as Tab, label: '请求记录' },
+                    { key: 'apikeys' as Tab, label: 'API Key 管理' },
+                ].map(tab => (
+                    <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key)}
+                        style={{
+                            padding: '8px 16px',
+                            border: 'none',
+                            background: 'none',
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            fontWeight: activeTab === tab.key ? 600 : 400,
+                            color: activeTab === tab.key ? C.primary : C.textSecondary,
+                            borderBottom: activeTab === tab.key ? `2px solid ${C.primary}` : '2px solid transparent',
+                            marginBottom: -1,
+                            transition: 'all 150ms',
+                        }}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* Tab 内容 */}
+            {loading && activeTab !== 'apikeys' ? (
+                <div style={{ padding: 48, textAlign: 'center', color: C.textLight }}>加载中...</div>
+            ) : (
+                <>
+                    {activeTab === 'overview' && renderOverview()}
+                    {activeTab === 'usage' && renderUsage()}
+                    {activeTab === 'cost' && renderCost()}
+                    {activeTab === 'requests' && renderRequests()}
+                    {activeTab === 'apikeys' && <ApiKeyPanel />}
+                </>
+            )}
+        </div>
+    );
+};
+
+export default Dashboard;

@@ -5,6 +5,8 @@ import { setupDeploymentHandlers } from './ipc/deployment.ipc';
 import { setupTokenMonitorHandlers } from './ipc/token-monitor.ipc';
 import { setupOpenClawHandlers } from './ipc/openclaw.ipc';
 import { setupSkillStoreHandlers } from './ipc/skill-store.ipc';
+import { registerOrchestratorIPC } from './services/orchestrator';
+import { registerPythonServiceIPC } from './services/pythonService';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -47,11 +49,13 @@ async function createWindow(): Promise<void> {
 }
 
 function registerIpcHandlers(): void {
-    // 类型断言：assert 非空（上面 createWindow 对此无直接依赖）
     setupDeploymentHandlers(ipcMain);
     setupTokenMonitorHandlers(ipcMain);
     setupOpenClawHandlers(ipcMain);
     setupSkillStoreHandlers(ipcMain);
+    // 注册中枢调度器 + Python 服务桥接
+    registerOrchestratorIPC(ipcMain);
+    registerPythonServiceIPC(ipcMain);
 }
 
 app.whenReady().then(() => {

@@ -1,65 +1,150 @@
-import { Injectable } from '@nestjs/common';
-
-export interface ModelProvider {
-    id: string;
-    name: string;
-    baseURL: string;
-    type: 'official' | 'third_party' | 'custom';
-    defaultApiKey?: string; // 平台预设的默认 Key（不推荐，应让用户自己填）
-}
+// server/api-gateway/src/modules/model-gateway/model-gateway.service.ts
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { encrypt, decrypt } from '../../common/utils/encryption';
+import {ModelGatewayHelper} from "./model-gateway-helper.service";
 
 @Injectable()
 export class ModelGatewayService {
-    private builtInProviders: ModelProvider[] = [
-        {
-            id: 'siliconflow',
-            name: '硅基流动',
-            baseURL: 'https://api.siliconflow.cn/v1',
-            type: 'third_party',
-        },
-        {
-            id: 'openai',
-            name: 'OpenAI',
-            baseURL: 'https://api.openai.com/v1',
-            type: 'official',
-        },
-        {
-            id: 'ofox',
-            name: 'OfoxAI',
-            baseURL: 'https://api.ofox.com/v1',
-            type: 'third_party',
-        },
-        {
-            id: '302ai',
-            name: '302.AI',
-            baseURL: 'https://api.302.ai/v1',
-            type: 'third_party',
-        },
-    ];
+    constructor(
+        private prisma: PrismaService,
+        private helper: ModelGatewayHelper,
+    ) {}
 
-    constructor() {}
+    async getProviders(userId: string) {
+        const providers = await this.prisma.userProvider.findMany({
+            where: { userId },
+            select: {
+                id: true,
+                providerName: true,
+                apiKeyEncrypted: true,
+                baseUrl: true,
+                isDefault: true,
+                createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        // 返回时解密 API Key（前端仅展示预览，实际应只返回脱敏）
+        return providers.map(p => ({
+            ...p,
+            apiKeyPreview: p.apiKeyEncrypted ? '••••••••' : null,
+        }));
+    }
 
-    async getProviders(userId: string): Promise<ModelProvider[]> {
-        // 实际项目可从数据库加载用户自定义供应商，这里仅返回内置列表 + 自定义占位
-        return [
-            ...this.builtInProviders,
-            { id: 'custom', name: '自定义', baseURL: '', type: 'custom' },
-        ];
+    async getProviderById(id: string, userId: string) {
+        const provider = await this.prisma.userProvider.findFirst({
+            where: { id, userId },
+        });
+        if (!provider) throw new NotFoundException('提供商不存在');
+        return {
+            id: provider.id,
+            providerName: provider.providerName,
+            apiKeyPreview: '••••••••',
+            baseUrl: provider.baseUrl,
+            isDefault: provider.isDefault,
+            createdAt: provider.createdAt,
+        };
     }
 
     async addCustomProvider(
         userId: string,
-        name: string,
-        baseURL: string,
+        providerName: string,
         apiKey: string,
-    ): Promise<ModelProvider> {
-        // 简化实现：直接返回新供应商信息（实际应存数据库）
-        const newProvider: ModelProvider = {
-            id: 'custom_' + Date.now(),
-            name,
-            baseURL,
-            type: 'custom',
-        };
-        return newProvider;
+        baseUrl?: string,
+        isDefault = false,
+    ) {
+        const existing = await this.prisma.userProvider.findUnique({
+            where: { userId_providerName: { userId, providerName } },
+        });
+        if (existing) {
+            throw new BadRequestException('该模型提供商已添加');
+        }
+
+        const encryptedKey = encrypt(apiKey);
+
+        if (isDefault) {
+            await this.prisma.userProvider.updateMany({
+                where: { userId },
+                data: { isDefault: false },
+            });
+        }
+
+        return this.prisma.userProvider.create({
+            data: {
+                userId,
+                providerName,
+                apiKeyEncrypted: encryptedKey,
+                baseUrl,
+                isDefault,
+            },
+            select: {
+                id: true,
+                providerName: true,
+                baseUrl: true,
+                isDefault: true,
+            },
+        });
+    }
+
+    // 内部方法：获取解密后的 API Key（供实际调用模型时使用）
+    async getDecryptedApiKey(providerId: string, userId: string): Promise<string> {
+        const provider = await this.prisma.userProvider.findFirst({
+            where: { id: providerId, userId },
+        });
+        if (!provider) throw new NotFoundException('提供商不存在');
+        return decrypt(provider.apiKeyEncrypted);
+    }
+
+    async setDefaultProvider(userId: string, providerId: string) {
+        const provider = await this.prisma.userProvider.findFirst({
+            where: { id: providerId, userId },
+        });
+        if (!provider) throw new NotFoundException('模型提供商不存在');
+
+        await this.prisma.userProvider.updateMany({
+            where: { userId },
+            data: { isDefault: false },
+        });
+
+        return this.prisma.userProvider.update({
+            where: { id: providerId },
+            data: { isDefault: true },
+        });
+    }
+
+    async deleteProvider(userId: string, providerId: string) {
+        const provider = await this.prisma.userProvider.findFirst({
+            where: { id: providerId, userId },
+        });
+        if (!provider) throw new NotFoundException('模型提供商不存在');
+
+        return this.prisma.userProvider.delete({ where: { id: providerId } });
+    }
+
+    async testProviderConnection(userId: string, providerId: string) {
+        const provider = await this.prisma.userProvider.findFirst({
+            where: { id: providerId, userId },
+        });
+        if (!provider) throw new NotFoundException('提供商不存在');
+
+        const decryptedKey = decrypt(provider.apiKeyEncrypted);
+        const result = await this.helper.testConnection(provider.baseUrl || '', decryptedKey);
+        return result;
+    }
+
+    async getProviderModels(userId: string, providerId: string) {
+        const provider = await this.prisma.userProvider.findFirst({
+            where: { id: providerId, userId },
+        });
+        if (!provider) throw new NotFoundException('提供商不存在');
+
+        const decryptedKey = decrypt(provider.apiKeyEncrypted);
+        const models = await this.helper.fetchModels(provider.baseUrl || '', decryptedKey);
+        return { models };
+    }
+
+    // 可选：测试未保存的连接（前端用于验证）
+    async testConnectionWithCredentials(baseUrl: string, apiKey: string) {
+        return this.helper.testConnection(baseUrl, apiKey);
     }
 }

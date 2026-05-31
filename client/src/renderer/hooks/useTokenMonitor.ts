@@ -1,27 +1,31 @@
-// ─── client/src/renderer/hooks/useTokenMonitor.ts ─────────
+// client/src/renderer/hooks/useTokenMonitor.ts
 import { useEffect } from 'react';
 import { useTokenStore } from '../store/token';
 
-export function useTokenMonitor(period: 'day' | 'week' | 'month' = 'day') {
-    const { usages, fetchUsage, subscribe, budget, setBudget } = useTokenStore();
+export function useTokenMonitor(days: number = 7) {
+    const { usage, budget, loading, fetchUsage, fetchBudget } = useTokenStore();
 
     useEffect(() => {
-        fetchUsage(period);
-        const cleanup = subscribe();
-        return cleanup;
-    }, [period, fetchUsage, subscribe]);
+        fetchUsage(days);
+        fetchBudget();
+        // 可选轮询
+        const interval = setInterval(() => {
+            fetchUsage(days);
+        }, 30000);
+        return () => clearInterval(interval);
+    }, [days, fetchUsage, fetchBudget]);
 
-    const totalTokens = usages.reduce((sum, u) => sum + u.inputTokens + u.outputTokens, 0);
-    const totalCost = usages.reduce((sum, u) => sum + u.costUsd, 0);
-    const budgetUsage = budget ? (totalCost / budget.monthlyBudget) * 100 : 0;
+    const totalCost = usage?.totalCost ?? 0;
+    const totalTokens = usage?.totalTokens ?? 0;
+    const budgetUsage = budget ? (budget.used / budget.budget) * 100 : 0;
 
     return {
-        usages,
-        totalTokens,
+        usage,
         totalCost,
+        totalTokens,
         budget,
         budgetUsage,
-        setBudget,
-        fetchUsage,
+        loading,
+        refresh: () => fetchUsage(days),
     };
 }

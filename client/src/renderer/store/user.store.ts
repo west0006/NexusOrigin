@@ -1,48 +1,52 @@
 // client/src/renderer/store/user.store.ts
 import { create } from 'zustand';
-
-interface User {
-    id: string;
-    email: string;
-    username: string;
-    avatar?: string;
-}
+import { authAPI } from '../api/auth.api';
+import type { User } from '@shared/types';
 
 interface UserState {
     user: User | null;
     token: string | null;
-    setAuth: (user: User, token: string) => void;
-    logout: () => void;
-    /** 页面初始化时从 localStorage 恢复登录状态 */
+    refreshToken: string | null;
+    setAuth: (user: User, token: string, refreshToken: string) => void;
+    logout: () => Promise<void>;
     initAuth: () => void;
 }
 
-export const useUserStore = create<UserState>((set, get) => ({
+export const useUserStore = create<UserState>((set) => ({
     user: null,
     token: localStorage.getItem('accessToken') || null,
+    refreshToken: localStorage.getItem('refreshToken') || null,
 
-    setAuth: (user, token) => {
+    setAuth: (user, token, refreshToken) => {
         localStorage.setItem('accessToken', token);
+        localStorage.setItem('refreshToken', refreshToken);
         localStorage.setItem('user', JSON.stringify(user));
-        set({ user, token });
+        set({ user, token, refreshToken });
     },
 
-    logout: () => {
+    logout: async () => {
+        try {
+            await authAPI.logout();
+        } catch (e) {
+            console.warn('Logout API failed', e);
+        }
         localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
-        set({ user: null, token: null });
+        set({ user: null, token: null, refreshToken: null });
     },
 
     initAuth: () => {
         const token = localStorage.getItem('accessToken');
+        const refreshToken = localStorage.getItem('refreshToken');
         const userStr = localStorage.getItem('user');
-        if (token && userStr) {
+        if (token && refreshToken && userStr) {
             try {
                 const user = JSON.parse(userStr);
-                set({ token, user });
+                set({ token, refreshToken, user });
             } catch {
-                // 数据损坏，清空
                 localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
                 localStorage.removeItem('user');
             }
         }

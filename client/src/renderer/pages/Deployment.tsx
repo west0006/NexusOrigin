@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store/app';
 import { FocusPanel } from '../components/FocusPanel';
 import { showToast } from '../components/Toast';
+import {C} from "@renderer/styles/theme";
+import { Icon } from '../components/icons';
 
 const STEPS = ['环境检测', '框架选择', 'API 配置', '部署安装', '完成'];
 
@@ -118,7 +120,11 @@ export const DeploymentWizard: React.FC = () => {
                                 fontSize: 12, fontWeight: 600,
                             }}
                         >
-                            {index < step ? '✓' : index + 1}
+                            {index < step ? <span style={{ display: 'inline-flex' }}>{status === 'completed' ? (
+                                <Icon name="check" size={16} color={C.success} />
+                            ) : (
+                                <Icon name="x" size={16} color={C.error} />
+                            )}</span> : <span>{index + 1}</span>}
                         </div>
                         <span style={{ marginLeft: 8, fontSize: 14, fontWeight: index === step ? 600 : 400 }}>
               {label}
@@ -141,7 +147,10 @@ export const DeploymentWizard: React.FC = () => {
                         className="button button-primary"
                         disabled={!env?.node || !env?.python}
                         onClick={() => setStep(1)}
-                        style={{ marginTop: 16 }}
+                        style={{
+                            padding: '6px 14px', borderRadius: C.radiusSm, border: 'none',
+                            background: C.primary, color: C.textInverse, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                        }}
                     >
                         下一步
                     </button>
@@ -164,7 +173,10 @@ export const DeploymentWizard: React.FC = () => {
                     </select>
                     <div style={{ display: 'flex', gap: 8 }}>
                         <button className="button" onClick={() => setStep(0)}>上一步</button>
-                        <button className="button button-primary" onClick={() => setStep(2)}>下一步</button>
+                        <button style={{
+                            padding: '6px 14px', borderRadius: C.radiusSm, border: 'none',
+                            background: C.primary, color: C.textInverse, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                        }} onClick={() => setStep(2)}>下一步</button>
                     </div>
                 </div>
             )}
@@ -229,7 +241,7 @@ export const DeploymentWizard: React.FC = () => {
             {/* 步骤4: 完成 */}
             {step === 4 && (
                 <div className="card" style={{ padding: 32, textAlign: 'center' }}>
-                    <div style={{ fontSize: 48 }}>✅</div>
+                    <Icon name="target" size={48} color={C.primary} />
                     <h3 style={{ marginBottom: 8 }}>部署成功</h3>
                     <p style={{ color: 'var(--color-ink-muted)', marginBottom: 16 }}>
                         {framework} 已安装完毕。
@@ -286,8 +298,12 @@ export const DeploymentWizard: React.FC = () => {
 const CheckRow: React.FC<{ label: string; pass?: boolean; hint?: string }> = ({ label, pass, hint }) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
         <span>{label}</span>
-        <span style={{ color: pass ? 'var(--color-success)' : 'var(--color-error)' }}>
-      {pass ? '✓' : '✗'} {hint ? ` (${hint})` : ''}
-    </span>
+        <span style={{ color: pass ? 'var(--color-success)' : 'var(--color-error)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            {status === 'completed' ? (
+                <Icon name="check" size={16} color={C.success} />
+            ) : (
+                <Icon name="x" size={16} color={C.error} />
+            )} {hint ? `(${hint})` : ''}
+        </span>
     </div>
 );

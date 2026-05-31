@@ -1,0 +1,111 @@
+/* ═══════════════════════════════════════════════
+   枢纽 NexusOrigin 状态栏 & 通知样式
+   基于 Style2_0.md §5.2
+   ═══════════════════════════════════════════════ */
+
+/* ── 全局状态栏（页面底部） ── */
+.nexus-status-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--nexus-space-3);
+    background: var(--nexus-bg-card);
+    border-top: 1px solid var(--nexus-border);
+    font-size: var(--nexus-text-sm);
+    color: var(--nexus-text-secondary);
+    z-index: 50;
+    user-select: none;
+}
+
+.nexus-status-bar__left {
+    display: flex;
+    align-items: center;
+    gap: var(--nexus-space-3);
+}
+
+.nexus-status-bar__right {
+    display: flex;
+    align-items: center;
+    gap: var(--nexus-space-3);
+}
+
+/* ── 状态指示器 ── */
+.nexus-status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--nexus-radius-full);
+    margin-right: var(--nexus-space-1);
+}
+
+.nexus-status-dot--online   { background: var(--nexus-success); }
+.nexus-status-dot--warning  { background: var(--nexus-warning); }
+.nexus-status-dot--offline  { background: var(--nexus-error);   }
+.nexus-status-dot--degraded { background: var(--nexus-warning); animation: nexus-focus-breathe 2s ease-out infinite; }
+
+/* ── 成本提示气泡 ── */
+.nexus-cost-bubble {
+    position: fixed;
+    bottom: 56px;
+    right: var(--nexus-space-3);
+    background: var(--nexus-bg-card);
+    border: 1px solid var(--nexus-border);
+    border-radius: var(--nexus-radius-md);
+    box-shadow: var(--nexus-shadow-elevated);
+    padding: var(--nexus-space-2) var(--nexus-space-3);
+    font-size: var(--nexus-text-sm);
+    color: var(--nexus-text-secondary);
+    z-index: 60;
+    animation: nexus-toast-in var(--nexus-duration-slow) var(--nexus-ease-out);
+}
+.nexus-cost-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    right: 20px;
+    width: 12px;
+    height: 12px;
+    background: var(--nexus-bg-card);
+    border-right: 1px solid var(--nexus-border);
+    border-bottom: 1px solid var(--nexus-border);
+    transform: rotate(45deg);
+}
+
+/* ── 一级状态徽标 ── */
+.nexus-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--nexus-radius-pill);
+    font-size: var(--nexus-text-xs);
+    font-weight: 600;
+}
+
+.nexus-badge--online   { background: var(--nexus-success-bg); color: var(--nexus-success); }
+.nexus-badge--offline  { background: var(--nexus-error-bg);   color: var(--nexus-error);   }
+.nexus-badge--warning  { background: var(--nexus-warning-bg); color: #B08800; }
+.nexus-badge--new      { background: var(--nexus-primary-subtle); color: var(--nexus-primary); }
+
+/* ── Toast 通知 ── */
+.nexus-toast {
+    position: fixed;
+    top: var(--nexus-space-3);
+    right: var(--nexus-space-3);
+    max-width: 360px;
+    padding: var(--nexus-space-2) var(--nexus-space-3);
+    border-radius: var(--nexus-radius-md);
+    box-shadow: var(--nexus-shadow-elevated);
+    font-size: var(--nexus-text-base);
+    z-index: 100;
+    animation: nexus-toast-in var(--nexus-duration-slow) var(--nexus-ease-out);
+}
+.nexus-toast--success { background: var(--nexus-success); color: #fff; }
+.nexus-toast--error   { background: var(--nexus-error);   color: #fff; }
+.nexus-toast--warning { background: var(--nexus-warning); color: #1A202C; }
+.nexus-toast--info    { background: var(--nexus-info);    color: #fff; }

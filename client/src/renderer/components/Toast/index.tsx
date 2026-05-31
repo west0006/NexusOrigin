@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
+// Toast/index.tsx - 修改后的完整代码
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 
 let globalToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 
@@ -8,10 +9,11 @@ export const showToast = (msg: string, type?: 'success' | 'error' | 'warning') =
 
 export const ToastContainer: React.FC = () => {
     const [toasts, setToasts] = useState<{ id: number; msg: string; type: string }[]>([]);
-    let counter = 0;
+    const counterRef = useRef(0);
 
     globalToast = useCallback((msg: string, type = 'info') => {
-        const id = Date.now();
+        counterRef.current += 1;
+        const id = counterRef.current;
         setToasts(prev => [...prev, { id, msg, type }]);
         setTimeout(() => {
             setToasts(prev => prev.filter(t => t.id !== id));

@@ -1,12 +1,12 @@
 // ─── client/src/main/ipc/skill-store.ipc.ts ───────────────
 import { IpcMain } from 'electron';
-import { IPC_CHANNELS } from '../../shared/config';
-import type { SkillListParams, SkillItem } from '../../shared/types';
+import { IPC_CHANNELS } from '@shared/config';
+import type { SkillListResponse, Skill } from '@shared/types';
 
 export function setupSkillStoreHandlers(ipcMain: IpcMain): void {
     ipcMain.handle(
         IPC_CHANNELS.SKILL_LIST,
-        async (_event, params: SkillListParams): Promise<{ items: SkillItem[]; total: number }> => {
+        async (_event, params: SkillListResponse): Promise<{ items: Skill[]; total: number }> => {
             if (params.pageSize <= 0) {
                 throw new Error('pageSize must be positive');
             }
@@ -20,7 +20,7 @@ export function setupSkillStoreHandlers(ipcMain: IpcMain): void {
         }
     });
 
-    ipcMain.handle(IPC_CHANNELS.SKILL_INSTALLED, async (): Promise<SkillItem[]> => {
+    ipcMain.handle(IPC_CHANNELS.SKILL_INSTALLED, async (): Promise<Skill[]> => {
         return [];
     });
 }
