@@ -50,7 +50,7 @@ const MOCK_API_KEYS: ApiKeyEntry[] = [
     { id: 'k4', provider: 'Anthropic', label: 'Claude API', keyPreview: 'sk-ant-...x9y2', status: 'invalid', lastChecked: '2026-05-28 09:15' },
 ];
 
-const USE_MOCK = true;
+import { USE_MOCK } from '../config/env';
 
 // === Styles ===
 const inputBase: React.CSSProperties = {

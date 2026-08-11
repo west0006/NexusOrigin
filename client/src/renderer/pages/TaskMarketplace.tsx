@@ -11,8 +11,7 @@ import { useAgentRegistryStore } from '../store/agentRegistry.store';
 import { CollaborationFlowEnhanced } from '../components/Agent/CollaborationFlowEnhanced';
 import { MOCK_TASKS } from '../data/mockTasks';
 import type { A2ATask } from '@shared/types';
-
-const USE_MOCK = true;
+import { USE_MOCK } from '../config/env';
 
 interface Rating {
     score: number;

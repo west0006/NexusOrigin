@@ -12,13 +12,13 @@ export const C = {
     cardBg: '#FFFFFF',
 
     // 边框
-    border: '#E2E8F0',
+    border: '#D1D5DB',
     borderMuted: '#D8DEE4',
 
     // 文字
-    text: '#1A202C',
-    textSecondary: '#718096',
-    textLight: '#A0AEC0',
+    text: '#1F2937',
+    textSecondary: '#6B7280',
+    textLight: '#9CA3AF',
     textInverse: '#FFFFFF',
 
     // 语义色

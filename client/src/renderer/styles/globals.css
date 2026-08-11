@@ -64,7 +64,7 @@
     --transition-normal: 200ms ease-out;
 
     /* ========== 聚焦专属语义色 ========== */
-    --color-focus-bg: #F3F0FF;
+    --color-focus-bg: rgba(108, 92, 231, 0.08);
     --color-focus-border: #6C5CE7;
     --color-focus-glow: rgba(108, 92, 231, 0.25);
     --color-context-line: #D1D5DB;
@@ -72,7 +72,6 @@
 
     /* ========== 聚焦光晕动画 ========== */
     --animation-focus-pulse: focus-pulse 2s infinite;
-    --color-focus-bg: rgba(108, 92, 231, 0.08);
 }
 
 *,

@@ -26,6 +26,7 @@ export type IconName =
     | 'menu' | 'home' | 'bell' | 'gear' | 'location' | 'circle' | 'target'
     // Layout components
     | 'environment' | 'toggleSidebar' | 'collapseArrow' | 'nexusLogo'
+    | 'collaborationLab' | 'assistantNav'
     // Media / Content 区域新增：
     | 'article' | 'document' | 'list' | 'grid' | 'play' | 'alert' | 'dollar' | 'zap';
 
@@ -523,6 +524,20 @@ const Billing: IconComponent = ({ size = 14, sw = 1.8 }) => (
     </svg>
 );
 
+/* ========== Layout-specific ========== */
+const CollaborationLab: IconComponent = ({ size = 20, sw = 1.8 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={S}>
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" />
+    </svg>
+);
+
+const Assistant: IconComponent = ({ size = 20, sw = 1.8 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={S}>
+        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+        <circle cx="12" cy="10" r="3" /><path d="M9 17h6" />
+    </svg>
+);
+
 /* ========== Media / Content ========== */
 const Image: IconComponent = ({ size = 14, sw = 1.8 }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={S}>
@@ -780,6 +795,8 @@ export const ICON_MAP: Record<IconName, React.FC<{ size?: number; sw?: number; f
     collapseArrow: CollapseArrow,
     nexusLogo: NexusLogo,
     environment: Environment,
+    collaborationLab: CollaborationLab,
+    assistantNav: Assistant,
     // Media / Content 区域新增：
     article: Article,
     document: Document,

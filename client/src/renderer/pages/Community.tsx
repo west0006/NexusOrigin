@@ -10,12 +10,10 @@ import { Post } from '@shared/types';
 import type { Comment as AppComment } from '@shared/types';
 import { C, CATEGORY, escapeHtml, countAllComments } from '../utils/community';
 import { MOCK_POSTS } from '../data/mockPosts';
+import { USE_MOCK } from '../config/env';
 
 const PAGE_SIZE = 10;
 const HEADER_HEIGHT = 44;
-
-/* ─── 模拟模式开关 ─── */
-const USE_MOCK = true;
 
 export const Community: React.FC = () => {
     const user = useUserStore((s) => s.user);

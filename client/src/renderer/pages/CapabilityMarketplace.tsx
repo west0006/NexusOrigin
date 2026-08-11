@@ -11,8 +11,7 @@ import { showToast } from '../components/Toast';
 import { FocusPanel } from '../components/FocusPanel';
 import { Icon } from '../components/icons';
 import { MOCK_CAPABILITIES } from '../data/mockCapabilities';
-
-const USE_MOCK = true;
+import { USE_MOCK } from '../config/env';
 
 interface Capability {
     id: string;
