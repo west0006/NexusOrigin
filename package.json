@@ -6,7 +6,7 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "test": "turbo test",
-    "postinstall": "cd server/api-gateway/src && npx prisma generate"
+    "postinstall": "cd server/api-gateway && npx prisma generate"
   },
   "engines": {
     "node": ">=18.0.0",

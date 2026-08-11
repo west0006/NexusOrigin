@@ -144,10 +144,4 @@ export class AuthController {
         return this.authService.updateOnboardingProfile(req.user.userId, dto);
     }
 
-    @Post('register/finish')
-    @HttpCode(HttpStatus.OK)
-    async finishRegister(@Body() dto: RegisterFinishDto) {
-        return this.authService.finishRegister(dto);
-    }
-
 }

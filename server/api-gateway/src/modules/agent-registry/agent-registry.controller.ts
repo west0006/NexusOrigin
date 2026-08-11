@@ -5,7 +5,7 @@ import { RegisterAgentDto } from './dto/RegisterAgent.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('Agent Registry')
-@Controller('agents')
+@Controller('agent-registry')
 export class AgentRegistryController {
     constructor(private readonly agentRegistry: AgentRegistryService) {}
 
