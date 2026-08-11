@@ -1,28 +1,84 @@
-# 依赖
+# ─── 依赖 ───
 node_modules/
 .pnpm-store/
+package-lock.json          # 使用 pnpm，忽略 npm 锁文件
 
-# 构建产物
+# ─── 构建产物 ───
 dist/
 release/
+out/
 *.tsbuildinfo
+*.exe
+*.dll
 
-# 环境变量（保留 .env.example 模板）
+# ─── 环境变量 & 密钥（保留 .env.example 模板） ───
 .env
+.env.local
+.env.*.local
+*.pem
+*.key
+!*.example
+!.env.example
 
-# 编辑器
+# ─── 编辑器 & IDE ───
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-*
 
-# 系统文件
+# ─── 操作系统 ───
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
 Thumbs.db
+ehthumbs.db
+Desktop.ini
 
-# 日志
+# ─── 日志 ───
 *.log
 npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# 包管理器锁文件（pnpm-lock.yaml 建议保留以固定依赖版本，此处可自行决定）
-# package-lock.json  # 若使用 pnpm，建议删除 package-lock.json
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+eggs/
+.python-version
+*.egg
+Pipfile.lock
+
+# ─── Go ───
+*.exe
+*.test
+*.out
+vendor/
+
+# ─── Prisma ───
+server/api-gateway/src/prisma/migrations/
+
+# ─── 测试覆盖率 ───
+coverage/
+.nyc_output/
+
+# ─── 临时文件 ───
+*.tmp
+*.temp
+.cache/
+
+# ─── Docker ───
+docker/ssl/
