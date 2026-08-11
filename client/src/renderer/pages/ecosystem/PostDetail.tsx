@@ -1,9 +1,9 @@
 // client/src/renderer/pages/PostDetail.tsx
 import React from 'react';
 import { Post } from '@shared/types';
-import { useUserStore } from '../store/user.store';
-import { showToast } from '../components/Toast';
-import { escapeHtml, CATEGORY, C } from '../utils/community';
+import { useUserStore } from '../../store/user.store';
+import { showToast } from '../../components/Toast';
+import { escapeHtml, CATEGORY, C } from '../../utils/community';
 
 /* ─── 线框 SVG 图标 ─── */
 const EyeIcon: React.FC = () => (

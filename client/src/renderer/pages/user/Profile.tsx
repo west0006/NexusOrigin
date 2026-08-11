@@ -3,15 +3,15 @@
 // 极简扁平风格
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { userAPI } from '../api/user.api';
+import { userAPI } from '../../api/user.api';
 import { UserProfile } from '@shared/types';
-import { useUserStore } from '../store/user.store';
-import { showToast } from '../components/Toast';
-import { useUserLevelStore } from '../store/userLevel.store';
-import { UserLevelBadge } from '../components/UserLevelBadge';
-import { BadgeList } from '../components/BadgeList';
+import { useUserStore } from '../../store/user.store';
+import { showToast } from '../../components/Toast';
+import { useUserLevelStore } from '../../store/userLevel.store';
+import { UserLevelBadge } from '../../components/UserLevelBadge';
+import { BadgeList } from '../../components/BadgeList';
 import { C } from '@renderer/styles/theme';
-import { Icon } from '../components/icons';
+import { Icon } from '../../components/icons';
 
 export const Profile: React.FC = () => {
     const user = useUserStore(s => s.user);

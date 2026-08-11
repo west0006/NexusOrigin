@@ -1,17 +1,17 @@
 // client/src/renderer/pages/TaskMarketplace.tsx
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Icon } from '../components/icons';
-import { C } from '../styles/theme';
-import { showToast } from '../components/Toast';
-import { a2aTasksApi } from '../api/task.api';
-import { orchestratorApi } from '../api/orchestrator.api';
-import { useTaskExecutionStore } from '../store/taskExecution.store';
-import { useAgentRegistryStore } from '../store/agentRegistry.store';
-import { CollaborationFlowEnhanced } from '../components/Agent/CollaborationFlowEnhanced';
-import { MOCK_TASKS } from '../data/mockTasks';
+import { Icon } from '../../components/icons';
+import { C } from '../../styles/theme';
+import { showToast } from '../../components/Toast';
+import { a2aTasksApi } from '../../api/task.api';
+import { orchestratorApi } from '../../api/orchestrator.api';
+import { useTaskExecutionStore } from '../../store/taskExecution.store';
+import { useAgentRegistryStore } from '../../store/agentRegistry.store';
+import { CollaborationFlowEnhanced } from '../../components/Agent/CollaborationFlowEnhanced';
+import { MOCK_TASKS } from '../../data/mockTasks';
 import type { A2ATask } from '@shared/types';
-import { USE_MOCK } from '../config/env';
+import { USE_MOCK } from '../../config/env';
 
 interface Rating {
     score: number;

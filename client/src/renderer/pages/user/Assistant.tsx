@@ -3,18 +3,18 @@
 // 整合上下文收集器 + 澄清模板 + 文本选中触发
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { C } from '../styles/theme';
-import { showToast } from '../components/Toast';
-import { useAppStore } from '../store/app';
-import { useAssistantStore } from '../store/assistant.store';
-import { COMMANDS, HELP_TEXT } from '../components/Assistant/assistant-prompt';
-import { intentToRoute, detectIntent } from '../components/Assistant/intent-detector';
+import { C } from '../../styles/theme';
+import { showToast } from '../../components/Toast';
+import { useAppStore } from '../../store/app';
+import { useAssistantStore } from '../../store/assistant.store';
+import { COMMANDS, HELP_TEXT } from '../../components/Assistant/assistant-prompt';
+import { intentToRoute, detectIntent } from '../../components/Assistant/intent-detector';
 import {
     getClarifyTemplate,
     needsClarification,
     type ClarifyTemplate,
-} from '../components/Assistant/clarify-templates';
-import { collectPageContext, formatContextForLLM } from '../components/Assistant/context-collector';
+} from '../../components/Assistant/clarify-templates';
+import { collectPageContext, formatContextForLLM } from '../../components/Assistant/context-collector';
 import {Icon} from "@renderer/components/icons";
 
 const Assistant: React.FC = () => {

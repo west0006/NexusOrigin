@@ -1,16 +1,16 @@
 // client/src/renderer/pages/Community.tsx
 import React, { useEffect, useState, useCallback } from 'react';
-import { postAPI } from '../api/post.api';
-import { useUserStore } from '../store/user.store';
-import { showToast } from '../components/Toast';
+import { postAPI } from '../../api/post.api';
+import { useUserStore } from '../../store/user.store';
+import { showToast } from '../../components/Toast';
 import { PostDetail } from './PostDetail';
 import { CommentPanel } from './CommentPanel';
-import { CreatePostModal } from '../components/CreatePostModal';
+import { CreatePostModal } from '../../components/CreatePostModal';
 import { Post } from '@shared/types';
 import type { Comment as AppComment } from '@shared/types';
-import { C, CATEGORY, escapeHtml, countAllComments } from '../utils/community';
-import { MOCK_POSTS } from '../data/mockPosts';
-import { USE_MOCK } from '../config/env';
+import { C, CATEGORY, escapeHtml, countAllComments } from '../../utils/community';
+import { MOCK_POSTS } from '../../data/mockPosts';
+import { USE_MOCK } from '../../config/env';
 
 const PAGE_SIZE = 10;
 const HEADER_HEIGHT = 44;

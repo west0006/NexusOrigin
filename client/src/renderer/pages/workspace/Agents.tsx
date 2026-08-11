@@ -2,13 +2,13 @@
 // Agent 页 | 修复：提交能力 + 真实能力保存 + 状态过滤 + try/catch
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { C } from '../styles/theme';
-import { Icon } from '../components/icons';
-import { showToast } from '../components/Toast';
-import { useAgentRegistryStore, type AgentRegistration } from '../store/agentRegistry.store';
-import { useSkillStore } from '../store/skill.store';
-import { checkOllamaHealth } from '../api/llm/local-ollama';
-import AgentChatPanel from '../components/AgentChatPanel';
+import { C } from '../../styles/theme';
+import { Icon } from '../../components/icons';
+import { showToast } from '../../components/Toast';
+import { useAgentRegistryStore, type AgentRegistration } from '../../store/agentRegistry.store';
+import { useSkillStore } from '../../store/skill.store';
+import { checkOllamaHealth } from '../../api/llm/local-ollama';
+import AgentChatPanel from '../../components/AgentChatPanel';
 
 type TabKey = 'agents' | 'register';
 

@@ -3,10 +3,10 @@
 // 极简扁平风格，统一使用 C token
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { C } from '../styles/theme';
-import { Icon } from '../components/icons';
-import { useTaskExecutionStore } from '../store/taskExecution.store';
-import { BudgetCircuitBreaker, type BreakerStatus } from '../components/Agent/BudgetCircuitBreaker';
+import { C } from '../../styles/theme';
+import { Icon } from '../../components/icons';
+import { useTaskExecutionStore } from '../../store/taskExecution.store';
+import { BudgetCircuitBreaker, type BreakerStatus } from '../../components/Agent/BudgetCircuitBreaker';
 
 interface DailyTrend {
     date: string;

@@ -1,9 +1,9 @@
 // client/src/renderer/pages/ModelProviders.tsx
 import React, { useEffect, useState } from 'react';
-import { apiClient } from '../api/client.api';
-import { showToast } from '../components/Toast';
-import {MOCK_PROVIDERS, MockModelProvider} from '../data/mockModelProviders';
-import { USE_MOCK } from '../config/env';
+import { apiClient } from '../../api/client.api';
+import { showToast } from '../../components/Toast';
+import {MOCK_PROVIDERS, MockModelProvider} from '../../data/mockModelProviders';
+import { USE_MOCK } from '../../config/env';
 
 interface ModelProvider {
     id: string;

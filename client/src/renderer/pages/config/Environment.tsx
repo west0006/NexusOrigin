@@ -6,10 +6,10 @@
 // - 极简扁平风格
 
 import React, { useEffect, useState } from 'react';
-import { Icon } from '../components/icons';
-import { C } from '../styles/theme';
-import { showToast } from '../components/Toast';
-import { apiClient } from '../api/client.api';
+import { Icon } from '../../components/icons';
+import { C } from '../../styles/theme';
+import { showToast } from '../../components/Toast';
+import { apiClient } from '../../api/client.api';
 import {useAppStore} from "@renderer/store/app";
 
 // === Types ===
@@ -50,7 +50,7 @@ const MOCK_API_KEYS: ApiKeyEntry[] = [
     { id: 'k4', provider: 'Anthropic', label: 'Claude API', keyPreview: 'sk-ant-...x9y2', status: 'invalid', lastChecked: '2026-05-28 09:15' },
 ];
 
-import { USE_MOCK } from '../config/env';
+import { USE_MOCK } from '../../config/env';
 
 // === Styles ===
 const inputBase: React.CSSProperties = {

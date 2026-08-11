@@ -1,35 +1,32 @@
-// client/src/renderer/App.tsx (完整替换)
+// client/src/renderer/App.tsx
 import React, { useEffect, useState } from 'react';
 import { Layout } from './components/Layout';
-import  Dashboard  from './pages/Dashboard';
-import { DeploymentWizard } from './pages/Deployment';
-import CapabilityMarketplace  from './pages/CapabilityMarketplace';
-import { Community } from './pages/Community';
-import { AuthPage } from './pages/Auth';
-import { OnboardingWizard } from './pages/OnboardingWizard';
+import Dashboard from '@renderer/pages/workspace/Dashboard';
+import { DeploymentWizard } from '@renderer/pages/workspace/Deployment';
+import CapabilityMarketplace from '@renderer/pages/ecosystem/CapabilityMarketplace';
+import { Community } from '@renderer/pages/ecosystem/Community';
+import { AuthPage } from '@renderer/pages/user/Auth';
+import { OnboardingWizard } from '@renderer/pages/user/OnboardingWizard';
 import { useAppStore, Route } from './store/app';
 import { useUserStore } from './store/user.store';
 import { useOnboardingStore } from './store/onboarding.store';
 import { useUserLevelStore } from './store/userLevel.store';
-import { Profile } from "@renderer/pages/Profile";
-import { CommandPalette } from "@renderer/components/CommandPalette";
-import { ErrorBoundary } from "@renderer/components/ErrorBoundary";
-import { ToastContainer } from "@renderer/components/Toast";
-import { ConfirmProvider } from "@renderer/contexts/ConfirmContext";
-import { ModelProviders } from "@renderer/pages/ModelProviders";
-
-
-import { GlobalCommandPalette } from "@renderer/components/GlobalCommandPalette";
-import { OnboardingOverlay } from "@renderer/components/OnboardingOverlay";
-import { AchievementToastContainer } from "@renderer/components/AchievementToast";
-import Agents from "@renderer/pages/Agents";
-import TaskMarketplace from "@renderer/pages/TaskMarketplace";
-import CollaborationLab from "@renderer/pages/CollaborationLab";
-import Assistant from "@renderer/pages/Assistant";
-import Environment from "@renderer/pages/Environment";
-import CostCenter from "@renderer/pages/CostCenter";
-import AssistantPanel from "@renderer/components/Assistant/AssistantPanel";
-import AssistantTrigger from "@renderer/components/Assistant/AssistantTrigger";
+import { Profile } from '@renderer/pages/user/Profile';
+import { CommandPalette } from '@renderer/components/CommandPalette';
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary';
+import { ToastContainer } from '@renderer/components/Toast';
+import { ConfirmProvider } from '@renderer/contexts/ConfirmContext';
+import { ModelProviders } from '@renderer/pages/config/ModelProviders';
+import { GlobalCommandPalette } from '@renderer/components/GlobalCommandPalette';
+import { OnboardingOverlay } from '@renderer/components/OnboardingOverlay';
+import { AchievementToastContainer } from '@renderer/components/AchievementToast';
+import Agents from '@renderer/pages/workspace/Agents';
+import TaskMarketplace from '@renderer/pages/collab/TaskMarketplace';
+import CollaborationLab from '@renderer/pages/collab/CollaborationLab';
+import Assistant from '@renderer/pages/user/Assistant';
+import Environment from '@renderer/pages/config/Environment';
+import CostCenter from '@renderer/pages/config/CostCenter';
+import AssistantPanel from '@renderer/components/Assistant/AssistantPanel';
 
 const PAGE_MAP: Record<Exclude<Route, 'auth' | 'onboarding'>, React.FC> = {
     dashboard: Dashboard,

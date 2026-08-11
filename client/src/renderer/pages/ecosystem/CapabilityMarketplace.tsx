@@ -6,12 +6,12 @@
 // - 环境检查面板
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { C } from '../styles/theme';
-import { showToast } from '../components/Toast';
-import { FocusPanel } from '../components/FocusPanel';
-import { Icon } from '../components/icons';
-import { MOCK_CAPABILITIES } from '../data/mockCapabilities';
-import { USE_MOCK } from '../config/env';
+import { C } from '../../styles/theme';
+import { showToast } from '../../components/Toast';
+import { FocusPanel } from '../../components/FocusPanel';
+import { Icon } from '../../components/icons';
+import { MOCK_CAPABILITIES } from '../../data/mockCapabilities';
+import { USE_MOCK } from '../../config/env';
 
 interface Capability {
     id: string;

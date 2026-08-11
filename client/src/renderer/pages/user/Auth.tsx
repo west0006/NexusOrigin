@@ -1,10 +1,10 @@
 // client/src/renderer/pages/Auth.tsx
 import React, { useState } from 'react';
-import { authAPI } from '../api/auth.api';
-import { useUserStore } from '../store/user.store';
-import { useAppStore } from '../store/app';
-import { showToast } from '../components/Toast';
-import { useOnboardingStore } from '../store/onboarding.store';
+import { authAPI } from '../../api/auth.api';
+import { useUserStore } from '../../store/user.store';
+import { useAppStore } from '../../store/app';
+import { showToast } from '../../components/Toast';
+import { useOnboardingStore } from '../../store/onboarding.store';
 import {C} from "@renderer/styles/theme";
 
 export const AuthPage: React.FC = () => {

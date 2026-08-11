@@ -1,9 +1,9 @@
 // client/src/renderer/pages/OnboardingWizard.tsx
 import React, { useState, useEffect } from 'react';
-import { useOnboardingStore, IdentityType, USER_STEPS, DEVELOPER_STEPS } from '../store/onboarding.store';
-import { useUserLevelStore, PRESET_BADGES } from '../store/userLevel.store';
-import { useAppStore } from '../store/app';
-import { showToast } from '../components/Toast';
+import { useOnboardingStore, IdentityType, USER_STEPS, DEVELOPER_STEPS } from '../../store/onboarding.store';
+import { useUserLevelStore, PRESET_BADGES } from '../../store/userLevel.store';
+import { useAppStore } from '../../store/app';
+import { showToast } from '../../components/Toast';
 import {Icon} from "@renderer/components/icons";
 
 // ── 颜色常量 ──

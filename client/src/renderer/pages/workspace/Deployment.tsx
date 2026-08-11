@@ -1,11 +1,11 @@
 // client/src/renderer/pages/Deployment.tsx
 import React, { useState, useEffect } from 'react';
-import { useAppStore } from '../store/app';
-import { FocusPanel } from '../components/FocusPanel';
-import { showToast } from '../components/Toast';
+import { useAppStore } from '../../store/app';
+import { FocusPanel } from '../../components/FocusPanel';
+import { showToast } from '../../components/Toast';
 import {C} from "@renderer/styles/theme";
-import { Icon } from '../components/icons';
-import { DEPLOY_SERVICE_URL } from '../config/env';
+import { Icon } from '../../components/icons';
+import { DEPLOY_SERVICE_URL } from '../../config/env';
 
 const STEPS = ['环境检测', '框架选择', 'API 配置', '部署安装', '完成'];
 

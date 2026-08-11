@@ -1,7 +1,7 @@
 // client/src/renderer/pages/CommentPanel.tsx
 import React, { useEffect, useRef } from 'react';
 import type { Comment as AppComment } from '@shared/types';
-import { escapeHtml, C, COMMENT_MAX_LENGTH } from '../utils/community';
+import { escapeHtml, C, COMMENT_MAX_LENGTH } from '../../utils/community';
 
 // 递归统计评论总数（用于显示回复数量）
 function countAllComments(comments: AppComment[]): number {

@@ -3,12 +3,12 @@
 // 极简扁平风格，统一使用 C token
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Icon } from '../components/icons';
-import { C } from '../styles/theme';
-import { showToast } from '../components/Toast';
-import { pythonService } from '../api/ipc/pythonService';
-import { CollaborationFlowEnhanced } from '../components/Agent/CollaborationFlowEnhanced';
-import { useTaskExecutionStore } from '../store/taskExecution.store';
+import { Icon } from '../../components/icons';
+import { C } from '../../styles/theme';
+import { showToast } from '../../components/Toast';
+import { pythonService } from '../../api/ipc/pythonService';
+import { CollaborationFlowEnhanced } from '../../components/Agent/CollaborationFlowEnhanced';
+import { useTaskExecutionStore } from '../../store/taskExecution.store';
 
 
 interface StepDef {
