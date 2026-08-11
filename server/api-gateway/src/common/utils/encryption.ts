@@ -7,11 +7,7 @@ const IV_LENGTH = 16;
 function getKey(): Buffer {
     const key = process.env.ENCRYPTION_KEY;
     if (!key || key.length < 16) {
-        if (process.env.NODE_ENV === 'production') {
-            throw new Error('ENCRYPTION_KEY environment variable is required in production');
-        }
-        console.warn('[WARN] Using weak default ENCRYPTION_KEY. Set ENCRYPTION_KEY env var in production.');
-        return Buffer.from('32-char-secret-key-for-aes-256!!'.padEnd(32, '0').slice(0, 32), 'utf8');
+        throw new Error('ENCRYPTION_KEY environment variable is required (min 16 chars)');
     }
     return crypto.createHash('sha256').update(key).digest();
 }

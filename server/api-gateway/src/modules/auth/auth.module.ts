@@ -15,14 +15,21 @@ import { TokenBlacklistService } from './token-blacklist.service';
         JwtModule.registerAsync({
             imports: [ConfigModule],
             inject: [ConfigService],
-            useFactory: (config: ConfigService) => ({
-                secret: config.get('JWT_SECRET') ?? 'fallback-secret-do-not-use-in-production',
-                signOptions: { expiresIn: '1h' },
-            }),
+            useFactory: (config: ConfigService) => {
+                const secret = config.get<string>('JWT_SECRET');
+                if (!secret) {
+                    if (config.get('NODE_ENV') === 'production') {
+                        throw new Error('JWT_SECRET is required in production');
+                    }
+                    return { secret: 'dev-fallback-do-not-use-in-production', signOptions: { expiresIn: '1h' } };
+                }
+                return { secret, signOptions: { expiresIn: '1h' } };
+            },
         }),
     ],
     controllers: [AuthController],
     providers: [AuthService, JwtStrategy, SmsService, WechatService, TokenBlacklistService],
+    // TokenBlacklistService uses in-memory Map; swap to Redis-backed impl for production
     exports: [AuthService, JwtModule, PassportModule, TokenBlacklistService],
 })
 export class AuthModule {}
