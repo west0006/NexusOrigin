@@ -1,5 +1,6 @@
+import { API_BASE } from '../config/env';
 
-const BASE_URL = 'http://localhost:3000/api/v1';
+const BASE_URL = API_BASE;
 
 // 刷新 token 的锁，防止并发刷新
 let refreshPromise: Promise<boolean> | null = null;

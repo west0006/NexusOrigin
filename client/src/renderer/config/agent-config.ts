@@ -1,25 +1,27 @@
 /**
  * Agent 相关配置
- * 所有地址、模型名等外部依赖集中管理
+ * 服务地址统一从 env.ts 读取，此处仅保留路径和模型常量。
  */
+
+import { OLLAMA_URL, CREWAI_SERVICE_URL, LANGGRAPH_SERVICE_URL, DEPLOY_SERVICE_URL } from './env';
 
 export const AGENT_CONFIG = {
     // Ollama
     ollama: {
-        baseUrl: 'http://127.0.0.1:11434',
+        baseUrl: OLLAMA_URL,
         defaultModel: 'qwen2.5-coder:1.5b',
     },
 
     // Python 服务
     pythonServices: {
         crewai: {
-            baseUrl: 'http://localhost:8001',
+            baseUrl: CREWAI_SERVICE_URL,
             healthEndpoint: '/api/crewai/health',
             pipelineEndpoint: '/api/crewai/pipeline',
             registerEndpoint: '/api/crewai/register',
         },
         langgraph: {
-            baseUrl: 'http://localhost:8002',
+            baseUrl: LANGGRAPH_SERVICE_URL,
             healthEndpoint: '/api/langgraph/health',
             executeEndpoint: '/api/langgraph/execute',
         },
@@ -27,7 +29,7 @@ export const AGENT_CONFIG = {
 
     // Go 部署服务
     deployService: {
-        baseUrl: 'http://localhost:8082',
+        baseUrl: DEPLOY_SERVICE_URL,
         crewaiEndpoint: '/api/v1/deploy/crewai',
         langgraphEndpoint: '/api/v1/deploy/langgraph',
     },

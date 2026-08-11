@@ -5,6 +5,7 @@ import { FocusPanel } from '../components/FocusPanel';
 import { showToast } from '../components/Toast';
 import {C} from "@renderer/styles/theme";
 import { Icon } from '../components/icons';
+import { DEPLOY_SERVICE_URL } from '../config/env';
 
 const STEPS = ['环境检测', '框架选择', 'API 配置', '部署安装', '完成'];
 
@@ -18,7 +19,7 @@ interface EnvCheck {
 // 真实环境检测（调用 deploy-service）
 const detectEnv = async (): Promise<EnvCheck> => {
     try {
-        const res = await fetch('http://localhost:8082/api/v1/deploy/env');
+        const res = await fetch(`${DEPLOY_SERVICE_URL}/api/v1/deploy/env`);
         if (!res.ok) throw new Error('环境检测失败');
         const data = await res.json();
         return {
@@ -68,7 +69,7 @@ export const DeploymentWizard: React.FC = () => {
         }, 600);
 
         try {
-            const res = await fetch(`http://localhost:8082/api/v1/deploy/${framework}/install`, {
+            const res = await fetch(`${DEPLOY_SERVICE_URL}/api/v1/deploy/${framework}/install`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

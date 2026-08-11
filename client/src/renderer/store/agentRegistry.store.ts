@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { pythonService } from '../api/ipc/pythonService';
 import type { RegisterAgentParams } from '../api/ipc/pythonService';
+import { OLLAMA_URL } from '../config/env';
 
 export interface AgentRegistration {
     agentId: string;
@@ -86,7 +87,7 @@ export const useAgentRegistryStore = create<AgentRegistryState>((set, get) => ({
             const reg: RegisterAgentParams = {
                 name: params.name,
                 framework: params.framework || 'crewai',
-                endpoint: params.endpoint || 'http://localhost:11434',
+                endpoint: params.endpoint || OLLAMA_URL,
                 model: params.model || 'qwen2.5-coder:1.5b',
             };
             // 如果有 capabilities 则转换为注册格式

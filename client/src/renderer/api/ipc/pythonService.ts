@@ -15,8 +15,10 @@ function useIPC(): boolean {
     return typeof window !== 'undefined' && !!window.electronAPI?.python;
 }
 
-const CREWAI_URL = 'http://localhost:8001';
-const LANGGRAPH_URL = 'http://localhost:8002';
+import { CREWAI_SERVICE_URL, LANGGRAPH_SERVICE_URL } from '../../config/env';
+
+const CREWAI_URL = CREWAI_SERVICE_URL;
+const LANGGRAPH_URL = LANGGRAPH_SERVICE_URL;
 
 export interface RegisterAgentParams {
     agentId?: string;

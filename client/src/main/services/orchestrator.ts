@@ -326,6 +326,144 @@ class TaskExecutor {
     }
 
     /**
+     * 执行单个步骤 — 向 Agent endpoint 发送 HTTP 请求，解析 SSE 流
+     */
+    private async executeStep(
+        taskId: string,
+        step: TaskStep,
+        agent: AgentRegistration,
+    ): Promise<void> {
+        const pipelinePath =
+            agent.framework === 'crewai'
+                ? '/api/crewai/pipeline'
+                : '/api/langgraph/execute';
+
+        const url = `${agent.endpoint}${pipelinePath}`;
+
+        step.status = 'running';
+        step.startedAt = Date.now();
+        this.emit(taskId, { type: 'step_started', taskId, stepId: step.stepId, data: { step } });
+
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ input: step.input, stream: true }),
+            });
+
+            if (!res.ok) {
+                throw new Error(`Agent returned ${res.status}`);
+            }
+
+            const reader = res.body?.getReader();
+            if (!reader) throw new Error('No response body');
+
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let collected = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    const json = line.slice(6);
+                    try {
+                        const event = JSON.parse(json);
+
+                        if (event.content) {
+                            collected += event.content;
+                            this.emit(taskId, {
+                                type: 'chunk',
+                                taskId,
+                                stepId: step.stepId,
+                                data: { content: event.content },
+                            });
+                        }
+
+                        if (event.cost !== undefined) {
+                            step.cost = (step.cost || 0) + event.cost;
+                        }
+
+                        if (event.tokenCount) {
+                            step.tokenCount = {
+                                input: (step.tokenCount.input || 0) + (event.tokenCount.input || 0),
+                                output: (step.tokenCount.output || 0) + (event.tokenCount.output || 0),
+                            };
+                        }
+                    } catch {
+                        // skip parse errors
+                    }
+                }
+            }
+
+            step.output = collected;
+            step.status = 'completed';
+            step.completedAt = Date.now();
+
+            this.updateStep(taskId, step.stepId, {});
+            this.emit(taskId, {
+                type: 'step_completed',
+                taskId,
+                stepId: step.stepId,
+                data: { output: collected },
+            });
+        } catch (err: any) {
+            step.status = 'failed';
+            step.error = err.message;
+            step.completedAt = Date.now();
+
+            this.updateStep(taskId, step.stepId, {});
+            this.emit(taskId, {
+                type: 'step_failed',
+                taskId,
+                stepId: step.stepId,
+                data: { error: err.message },
+            });
+        }
+    }
+
+    /**
+     * 执行完整任务 — 按序调用每个步骤的 Agent endpoint
+     */
+    async executeTask(taskId: string, registry: CapabilityRegistry): Promise<void> {
+        const task = this.tasks.get(taskId);
+        if (!task) return;
+
+        task.status = 'running';
+
+        for (const step of task.steps) {
+            if (step.status === 'pending') {
+                const agent = step.agentId ? registry.findById(step.agentId) : undefined;
+                if (!agent) {
+                    step.status = 'failed';
+                    step.error = 'Agent not found';
+                    step.completedAt = Date.now();
+                    this.updateStep(taskId, step.stepId, {});
+                    continue;
+                }
+
+                // Check breaker before executing
+                const breaker = this.breakers.get(taskId);
+                if (breaker && breaker.getState() === 'OPEN') {
+                    step.status = 'failed';
+                    step.error = 'Budget breaker open';
+                    step.completedAt = Date.now();
+                    this.updateStep(taskId, step.stepId, {});
+                    continue;
+                }
+
+                await this.executeStep(taskId, step, agent);
+            }
+        }
+    }
+
+    /**
      * 创建并启动任务
      */
     async createTask(
@@ -521,6 +659,10 @@ export function registerOrchestratorIPC(ipcMain: IpcMain): void {
         budget?: number;
     }) => {
         const task = await taskExecutor.createTask(params.input, capabilityRegistry, params.pipeline, params.budget);
+        // Execute the task asynchronously — events are emitted via listeners
+        taskExecutor.executeTask(task.taskId, capabilityRegistry).catch(err => {
+            console.error(`[Orchestrator] task ${task.taskId} execution failed:`, err);
+        });
         return task;
     });
 
