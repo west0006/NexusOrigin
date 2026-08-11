@@ -18,7 +18,7 @@ import { TokenBlacklistService } from './token-blacklist.service';
             useFactory: (config: ConfigService) => {
                 const secret = config.get<string>('JWT_SECRET');
                 if (!secret) {
-                    if (config.get('NODE_ENV') === 'production') {
+                    if (config.get('NODE_ENV') !== 'development') {
                         throw new Error('JWT_SECRET is required in production');
                     }
                     return { secret: 'dev-fallback-do-not-use-in-production', signOptions: { expiresIn: '1h' } };

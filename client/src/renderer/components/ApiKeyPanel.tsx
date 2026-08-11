@@ -1,7 +1,7 @@
 // client/src/renderer/components/ApiKeyPanel.tsx
 import React, { useEffect, useState, useCallback } from 'react';
 import { apiClient } from '../api/client.api';
-import { showToast } from '../components/Toast';
+import { showToast } from './Toast';
 import { UserProvider } from '@shared/types';
 import { C } from '../styles/theme';
 

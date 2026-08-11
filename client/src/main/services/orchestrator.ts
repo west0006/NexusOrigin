@@ -429,37 +429,51 @@ class TaskExecutor {
     }
 
     /**
-     * 执行完整任务 — 按序调用每个步骤的 Agent endpoint
+     * 执行完整任务 — 按序调用每个步骤的 Agent endpoint。
+     * 任一步骤失败则停止后续执行。
      */
     async executeTask(taskId: string, registry: CapabilityRegistry): Promise<void> {
         const task = this.tasks.get(taskId);
         if (!task) return;
 
+        if (task.steps.length === 0) {
+            task.status = 'completed';
+            task.completedAt = Date.now();
+            return;
+        }
+
         task.status = 'running';
 
         for (const step of task.steps) {
-            if (step.status === 'pending') {
-                const agent = step.agentId ? registry.findById(step.agentId) : undefined;
-                if (!agent) {
-                    step.status = 'failed';
-                    step.error = 'Agent not found';
-                    step.completedAt = Date.now();
-                    this.updateStep(taskId, step.stepId, {});
-                    continue;
-                }
+            if (step.status !== 'pending') continue;
 
-                // Check breaker before executing
-                const breaker = this.breakers.get(taskId);
-                if (breaker && breaker.getState() === 'OPEN') {
-                    step.status = 'failed';
-                    step.error = 'Budget breaker open';
-                    step.completedAt = Date.now();
-                    this.updateStep(taskId, step.stepId, {});
-                    continue;
-                }
-
-                await this.executeStep(taskId, step, agent);
+            const agent = step.agentId ? registry.findById(step.agentId) : undefined;
+            if (!agent) {
+                step.status = 'failed';
+                step.error = 'Agent not found';
+                step.completedAt = Date.now();
+                break;
             }
+
+            const breaker = this.breakers.get(taskId);
+            if (breaker && breaker.getState() === 'OPEN') {
+                step.status = 'failed';
+                step.error = 'Budget breaker open';
+                step.completedAt = Date.now();
+                break;
+            }
+
+            await this.executeStep(taskId, step, agent);
+
+            // Stop executing further steps if this one failed
+            if (step.status === 'failed') break;
+        }
+
+        // Ensure terminal status is set even if no updateStep was called
+        const allDone = task.steps.every(s => s.status === 'completed' || s.status === 'failed');
+        if (allDone && task.status === 'running') {
+            task.status = task.steps.some(s => s.status === 'failed') ? 'failed' : 'completed';
+            task.completedAt = Date.now();
         }
     }
 
@@ -509,6 +523,8 @@ class TaskExecutor {
         }
 
         this.emit(taskId, { type: 'task_completed', taskId, data: task });
+        // NOTE: the emit above is for compatibility with existing listeners;
+        // actual completion only fires after executeTask finishes all steps.
         return task;
     }
 
