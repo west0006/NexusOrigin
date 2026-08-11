@@ -203,26 +203,4 @@ export class SearchService {
         return snippet;
     }
 
-    async searchPersonal(userId: string, q: string, limit: number = 10): Promise<SearchResponse> {
-        const results: SearchResultItem[] = [];
-
-        const [myPosts, myPurchasedCapabilities, myAgents] = await Promise.all([
-            this.prisma.post.findMany({
-                where: { authorId: userId, title: { contains: q, mode: 'insensitive' } },
-                take: limit,
-            }),
-            this.prisma.purchase.findMany({
-                where: { userId, capability: { name: { contains: q, mode: 'insensitive' } } },
-                include: { capability: true },
-                take: limit,
-            }),
-            this.prisma.agent.findMany({
-                where: { ownerId: userId, name: { contains: q, mode: 'insensitive' } },
-                take: limit,
-            }),
-        ]);
-
-        // 转换结果...
-        return { items: results.slice(0, limit), total: results.length, limit };
-    }
 }

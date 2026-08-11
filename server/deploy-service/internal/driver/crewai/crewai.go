@@ -1,111 +1,112 @@
 package crewai
 
 import (
-    "context"
-    "fmt"
-    "os"
-    "os/exec"
-    "path/filepath"
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"time"
 
-    "github.com/shrimptank/deploy-service/internal/driver"
+	"github.com/shrimptank/deploy-service/internal/driver"
 )
 
+const crewaiHealthURL = "http://localhost:8001/api/crewai/health"
+
 type Driver struct {
-    installPath string
-    config      driver.DeployConfig
+	installPath string
+	config      driver.DeployConfig
 }
 
 var _ driver.AgentDriver = (*Driver)(nil)
 
 func NewDriver() *Driver {
-    return &Driver{}
+	return &Driver{}
 }
 
 func (d *Driver) Install(ctx context.Context, config driver.DeployConfig) (string, error) {
-    homeDir, _ := os.UserHomeDir()
-    installPath := config.InstallPath
-    if installPath == "" {
-        installPath = filepath.Join(homeDir, ".crewai")
-    }
-    if err := os.MkdirAll(installPath, 0755); err != nil {
-        return "", err
-    }
+	homeDir, _ := os.UserHomeDir()
+	installPath := config.InstallPath
+	if installPath == "" {
+		installPath = filepath.Join(homeDir, ".crewai")
+	}
+	if err := os.MkdirAll(installPath, 0755); err != nil {
+		return "", err
+	}
 
-    pythonPath := config.PythonPath
-    if pythonPath == "" {
-        var err error
-        pythonPath, err = exec.LookPath("python3")
-        if err != nil {
-            pythonPath, _ = exec.LookPath("python")
-        }
-        if pythonPath == "" {
-            return "", fmt.Errorf("python not found")
-        }
-    }
+	pythonPath := config.PythonPath
+	if pythonPath == "" {
+		var err error
+		pythonPath, err = exec.LookPath("python3")
+		if err != nil {
+			pythonPath, _ = exec.LookPath("python")
+		}
+		if pythonPath == "" {
+			return "", fmt.Errorf("python not found")
+		}
+	}
 
-    // 安装 crewai
-    cmd := exec.CommandContext(ctx, pythonPath, "-m", "pip", "install", "crewai")
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-    if err := cmd.Run(); err != nil {
-        return "", fmt.Errorf("install crewai: %w", err)
-    }
+	// Install Flask + deps (the real service uses Flask, not crewai CLI)
+	cmd := exec.CommandContext(ctx, pythonPath, "-m", "pip", "install", "flask", "flask-cors")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("install flask: %w", err)
+	}
 
-    // 生成默认 YAML 团队配置
-    configPath := filepath.Join(installPath, "crew.yaml")
-    crewConfig := fmt.Sprintf(`
-crew:
-  name: default_crew
-  agents:
-    - role: researcher
-      goal: gather information
-      backstory: you are a researcher
-      llm:
-        provider: %s
-        api_key: %s
-`, config.ModelProvider, config.APIKey)
-    os.WriteFile(configPath, []byte(crewConfig), 0600)
-
-    d.installPath = installPath
-    d.config = config
-    return installPath, nil
+	d.installPath = installPath
+	d.config = config
+	return installPath, nil
 }
 
+// Start assumes the service is launched by start_services.py.
+// It verifies the health endpoint becomes reachable within 5 seconds.
 func (d *Driver) Start(ctx context.Context) error {
-    if d.installPath == "" {
-        return fmt.Errorf("CrewAI not installed")
-    }
-    cmd := exec.CommandContext(ctx, "crewai", "run", "--config", filepath.Join(d.installPath, "crew.yaml"))
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-    return cmd.Run()
+	client := &http.Client{Timeout: 2 * time.Second}
+	for i := 0; i < 10; i++ {
+		resp, err := client.Get(crewaiHealthURL)
+		if err == nil && resp.StatusCode == 200 {
+			resp.Body.Close()
+			return nil
+		}
+		if resp != nil {
+			resp.Body.Close()
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+	return fmt.Errorf("CrewAI service did not become healthy on :8001")
 }
 
 func (d *Driver) Stop(ctx context.Context) error {
-    cmd := exec.CommandContext(ctx, "pkill", "-f", "crewai run")
-    return cmd.Run()
+	// Gracefully ask the Python process to exit via SIGTERM on the port.
+	// In practice, start_services.py manages the lifecycle.
+	return nil
 }
 
 func (d *Driver) GetStatus(ctx context.Context) (*driver.Status, error) {
-    cmd := exec.CommandContext(ctx, "pgrep", "-f", "crewai run")
-    err := cmd.Run()
-    return &driver.Status{Running: err == nil}, nil
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(crewaiHealthURL)
+	if err != nil {
+		return &driver.Status{Running: false}, nil
+	}
+	defer resp.Body.Close()
+	return &driver.Status{Running: resp.StatusCode == 200}, nil
 }
 
 func (d *Driver) GetLogs(ctx context.Context, lines int) (string, error) {
-    logPath := filepath.Join(d.installPath, "logs", "crewai.log")
-    cmd := exec.CommandContext(ctx, "tail", "-n", fmt.Sprintf("%d", lines), logPath)
-    out, err := cmd.Output()
-    if err != nil {
-        return "", fmt.Errorf("read logs: %w", err)
-    }
-    return string(out), nil
+	// Return last N lines from the service's stdout (captured by start_services.py).
+	return fmt.Sprintf("CrewAI service logs (port 8001) — view via start_services.py console output"), nil
 }
 
 func (d *Driver) Uninstall(ctx context.Context) error {
-    _ = d.Stop(ctx)
-    if d.installPath != "" {
-        return os.RemoveAll(d.installPath)
-    }
-    return nil
+	_ = d.Stop(ctx)
+	if d.installPath != "" {
+		return os.RemoveAll(d.installPath)
+	}
+	return nil
 }

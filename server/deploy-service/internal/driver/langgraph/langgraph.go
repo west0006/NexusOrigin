@@ -1,116 +1,110 @@
 package langgraph
 
 import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "os"
-    "os/exec"
-    "path/filepath"
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"time"
 
-    "github.com/shrimptank/deploy-service/internal/driver"
+	"github.com/shrimptank/deploy-service/internal/driver"
 )
 
+const langgraphHealthURL = "http://localhost:8002/api/langgraph/health"
+
 type Driver struct {
-    installPath string
-    config      driver.DeployConfig
+	installPath string
+	config      driver.DeployConfig
 }
 
 var _ driver.AgentDriver = (*Driver)(nil)
 
 func NewDriver() *Driver {
-    return &Driver{}
+	return &Driver{}
 }
 
 func (d *Driver) Install(ctx context.Context, config driver.DeployConfig) (string, error) {
-    homeDir, _ := os.UserHomeDir()
-    installPath := config.InstallPath
-    if installPath == "" {
-        installPath = filepath.Join(homeDir, ".langgraph")
-    }
-    if err := os.MkdirAll(installPath, 0755); err != nil {
-        return "", err
-    }
+	homeDir, _ := os.UserHomeDir()
+	installPath := config.InstallPath
+	if installPath == "" {
+		installPath = filepath.Join(homeDir, ".langgraph")
+	}
+	if err := os.MkdirAll(installPath, 0755); err != nil {
+		return "", err
+	}
 
-    // 1. 检查 Python 环境
-    pythonPath := config.PythonPath
-    if pythonPath == "" {
-        var err error
-        pythonPath, err = exec.LookPath("python3")
-        if err != nil {
-            pythonPath, _ = exec.LookPath("python")
-        }
-        if pythonPath == "" {
-            return "", fmt.Errorf("python not found")
-        }
-    }
+	pythonPath := config.PythonPath
+	if pythonPath == "" {
+		var err error
+		pythonPath, err = exec.LookPath("python3")
+		if err != nil {
+			pythonPath, _ = exec.LookPath("python")
+		}
+		if pythonPath == "" {
+			return "", fmt.Errorf("python not found")
+		}
+	}
 
-    // 2. 安装 langgraph-cli
-    cmd := exec.CommandContext(ctx, pythonPath, "-m", "pip", "install", "langgraph-cli")
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-    if err := cmd.Run(); err != nil {
-        return "", fmt.Errorf("install langgraph-cli: %w", err)
-    }
+	// Install Flask + deps (the real service uses Flask, not langgraph CLI)
+	cmd := exec.CommandContext(ctx, pythonPath, "-m", "pip", "install", "flask", "flask-cors")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("install flask: %w", err)
+	}
 
-    // 3. 初始化项目（如果不存在）
-    initCmd := exec.CommandContext(ctx, "langgraph", "init", "--path", installPath)
-    initCmd.Stdout = os.Stdout
-    initCmd.Stderr = os.Stderr
-    _ = initCmd.Run() // 忽略已存在的错误
-
-    // 4. 生成配置文件
-    configPath := filepath.Join(installPath, "config.json")
-    cfgData := map[string]interface{}{
-        "model_provider": config.ModelProvider,
-        "api_key":        config.APIKey,
-    }
-    data, _ := json.MarshalIndent(cfgData, "", "  ")
-    os.WriteFile(configPath, data, 0600)
-
-    d.installPath = installPath
-    d.config = config
-    return installPath, nil
+	d.installPath = installPath
+	d.config = config
+	return installPath, nil
 }
 
+// Start assumes the service is launched by start_services.py.
+// It verifies the health endpoint becomes reachable within 5 seconds.
 func (d *Driver) Start(ctx context.Context) error {
-    if d.installPath == "" {
-        return fmt.Errorf("LangGraph not installed")
-    }
-    cmd := exec.CommandContext(ctx, "langgraph", "serve", "--path", d.installPath)
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-    return cmd.Run()
+	client := &http.Client{Timeout: 2 * time.Second}
+	for i := 0; i < 10; i++ {
+		resp, err := client.Get(langgraphHealthURL)
+		if err == nil && resp.StatusCode == 200 {
+			resp.Body.Close()
+			return nil
+		}
+		if resp != nil {
+			resp.Body.Close()
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+	return fmt.Errorf("LangGraph service did not become healthy on :8002")
 }
 
 func (d *Driver) Stop(ctx context.Context) error {
-    // 简易：查找并终止 langgraph 进程
-    cmd := exec.CommandContext(ctx, "pkill", "-f", "langgraph serve")
-    return cmd.Run()
+	// In practice, start_services.py manages the lifecycle.
+	return nil
 }
 
 func (d *Driver) GetStatus(ctx context.Context) (*driver.Status, error) {
-    // 简易判断：检查进程是否存在
-    cmd := exec.CommandContext(ctx, "pgrep", "-f", "langgraph serve")
-    err := cmd.Run()
-    status := &driver.Status{Running: err == nil}
-    return status, nil
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(langgraphHealthURL)
+	if err != nil {
+		return &driver.Status{Running: false}, nil
+	}
+	defer resp.Body.Close()
+	return &driver.Status{Running: resp.StatusCode == 200}, nil
 }
 
 func (d *Driver) GetLogs(ctx context.Context, lines int) (string, error) {
-    logPath := filepath.Join(d.installPath, "logs", "langgraph.log")
-    cmd := exec.CommandContext(ctx, "tail", "-n", fmt.Sprintf("%d", lines), logPath)
-    out, err := cmd.Output()
-    if err != nil {
-        return "", fmt.Errorf("read logs: %w", err)
-    }
-    return string(out), nil
+	return fmt.Sprintf("LangGraph service logs (port 8002) — view via start_services.py console output"), nil
 }
 
 func (d *Driver) Uninstall(ctx context.Context) error {
-    _ = d.Stop(ctx)
-    if d.installPath != "" {
-        return os.RemoveAll(d.installPath)
-    }
-    return nil
+	_ = d.Stop(ctx)
+	if d.installPath != "" {
+		return os.RemoveAll(d.installPath)
+	}
+	return nil
 }

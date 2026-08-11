@@ -3,12 +3,14 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCapabilityDto } from './dto/CreateCapability.dto';
 import { BudgetService } from '../billing/budget.service';
+import { CapabilityAuditService } from './capability-audit.service';
 
 @Injectable()
 export class CapabilityService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly budgetService: BudgetService,
+        private readonly auditService: CapabilityAuditService,
     ) {}
 
     async list(page: number, pageSize: number, sort?: string, search?: string) {
@@ -52,6 +54,14 @@ export class CapabilityService {
     }
 
     async create(dto: CreateCapabilityDto, userId: string) {
+        // Run security audit before creating
+        const auditResult = await this.auditService.audit(
+            dto.packageUrl,
+            dto.sourceCode,
+        );
+
+        const finalStatus = auditResult.approved ? 'APPROVED' : 'REJECTED';
+
         return this.prisma.capability.create({
             data: {
                 name: dto.name,
@@ -65,7 +75,7 @@ export class CapabilityService {
                 manifest: (dto.manifest as any) ?? {},
                 source: dto.sourceCode ?? 'built-in',
                 ownerId: userId,
-                status: 'PENDING',
+                status: finalStatus,
             },
             include: {
                 owner: { select: { id: true, username: true, avatar: true } },
