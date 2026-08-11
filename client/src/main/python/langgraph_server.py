@@ -5,11 +5,12 @@ LangGraph 多智能体协作服务
 
 import json
 import time
+import uuid
 import logging
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 
-from ollama_client import OllamaClient, estimate_tokens
+from ollama_client import OllamaClient, estimate_tokens, DEFAULT_MODEL
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
