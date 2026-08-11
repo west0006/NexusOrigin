@@ -31,10 +31,14 @@ func (c *CostCalculator) Calculate(req UsageRecordRequest) float64 {
 }
 
 func (c *CostCalculator) calcLLMCost(model string, inputTokens, outputTokens int) float64 {
-    // 使用之前的定价表，此处省略具体实现，直接给出估算
-    // Keep existing pricing logic (as in original cost_calculator.go)
-    // 返回美元成本，将来可转换为信用点
-    return float64(inputTokens+outputTokens) * 0.0001
+	price, ok := pricingTable[model]
+	if !ok {
+		// Unknown model — fall back to a conservative default
+		price = struct{ Input, Output float64 }{Input: 2.5, Output: 10.0}
+	}
+	inputCost := float64(inputTokens) / 1_000_000 * price.Input
+	outputCost := float64(outputTokens) / 1_000_000 * price.Output
+	return inputCost + outputCost
 }
 
 func (c *CostCalculator) calcMCPCost(toolName string, durationMs int64) float64 {
