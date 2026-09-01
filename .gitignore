@@ -81,6 +81,7 @@ coverage/
 *.temp
 .cache/
 .reasonix/
+reasonix.toml
 
 # ─── Docker ───
 docker/ssl/
