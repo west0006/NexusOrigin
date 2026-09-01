@@ -83,5 +83,9 @@ coverage/
 .reasonix/
 reasonix.toml
 
+# ─── 项目内文档（不在远程仓库保留） ───
+z.about/
+AGENTS.md
+
 # ─── Docker ───
 docker/ssl/
