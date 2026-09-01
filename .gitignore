@@ -1,7 +1,8 @@
 # ─── 依赖 ───
 node_modules/
 .pnpm-store/
-package-lock.json          # 使用 pnpm，忽略 npm 锁文件
+# 使用 pnpm，忽略 npm 锁文件
+package-lock.json
 
 # ─── 构建产物 ───
 dist/
